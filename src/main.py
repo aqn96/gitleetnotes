@@ -15,9 +15,10 @@ from fetcher import (
     fetch_recent_accepted,
     fetch_submission_code,
     fetch_problem_details,
+    fetch_editorial_analysis,
     timestamp_to_date,
 )
-from analyzer import analyze_solution
+from analyzer import analyze_solution, infer_pattern_from_tags
 from note_generator import generate_note, save_note
 from progress_tracker import (
     load_progress,
@@ -81,6 +82,16 @@ def run() -> int:
         tags = [t["name"] for t in details.get("topicTags", [])]
         solved_on = timestamp_to_date(sub["timestamp"])
 
+        # Build a prefill dict from free sources so Gemini failure still
+        # produces a useful note (pattern from tags, complexity from editorial).
+        prefill: dict = {}
+        inferred = infer_pattern_from_tags(tags)
+        if inferred:
+            prefill["pattern"] = inferred
+        editorial = fetch_editorial_analysis(lc_session, lc_csrf, sub["titleSlug"])
+        if editorial:
+            prefill.update(editorial)
+
         print(f"    analyzing with Gemini...")
         analysis = analyze_solution(
             title=sub["title"],
@@ -88,6 +99,7 @@ def run() -> int:
             lang=sub["lang"],
             code=code,
             api_key=gemini_key,
+            prefill=prefill or None,
         )
 
         note_content = generate_note(
@@ -175,12 +187,21 @@ def _retry_unknown(progress: dict, session: str, csrf: str, gemini_key: str) -> 
         tags = [t["name"] for t in details.get("topicTags", [])]
         lang = entry.get("lang", "python3")
 
+        prefill: dict = {}
+        inferred = infer_pattern_from_tags(tags)
+        if inferred:
+            prefill["pattern"] = inferred
+        editorial = fetch_editorial_analysis(session, csrf, entry["slug"])
+        if editorial:
+            prefill.update(editorial)
+
         analysis = analyze_solution(
             title=title,
             difficulty=difficulty,
             lang=lang,
             code=code,
             api_key=gemini_key,
+            prefill=prefill or None,
         )
         if analysis["pattern"] == "Unknown":
             print(f"    WARN: still unknown, skipping.")

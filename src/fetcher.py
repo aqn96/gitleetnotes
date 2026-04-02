@@ -3,7 +3,8 @@ Fetches accepted LeetCode submissions and problem details via GraphQL.
 Uses session cookie auth — no official API key needed.
 """
 
-import os
+import html as html_lib
+import re
 import requests
 from datetime import datetime, timezone
 
@@ -130,6 +131,67 @@ def fetch_problem_details(session: str, csrf: str, slug: str) -> dict | None:
     except Exception as e:
         print(f"ERROR fetching problem details for {slug}: {e}")
         return None
+
+
+def fetch_editorial_analysis(session: str, csrf: str, slug: str) -> dict | None:
+    """
+    Fetches the official editorial for a problem (requires LeetCode Premium).
+    Returns {"time_complexity": ..., "space_complexity": ...} or None if
+    unavailable (free tier, no editorial, or parse failure).
+    """
+    query = """
+    query officialSolution($titleSlug: String!) {
+        question(titleSlug: $titleSlug) {
+            solution {
+                canSeeDetail
+                content
+            }
+        }
+    }
+    """
+    try:
+        resp = requests.post(
+            LC_GRAPHQL,
+            json={"query": query, "variables": {"titleSlug": slug}},
+            headers=_headers(session, csrf),
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        solution = (data.get("data") or {}).get("question", {}).get("solution")
+        if not solution or not solution.get("canSeeDetail"):
+            return None
+        content = solution.get("content", "")
+        return _parse_complexity_from_editorial(content)
+    except Exception:
+        return None
+
+
+def _parse_complexity_from_editorial(content: str) -> dict | None:
+    """Extracts time/space complexity O(...) values from editorial HTML."""
+    # Strip HTML tags and unescape entities
+    text = re.sub(r"<[^>]+>", " ", content)
+    text = html_lib.unescape(text)
+    # Remove LaTeX math delimiters and common formatting noise
+    text = re.sub(r"\$+", "", text)
+    text = re.sub(r"\\[a-zA-Z]+\{([^}]*)\}", r"\1", text)  # \textit{...} -> ...
+
+    time_match = re.search(
+        r"[Tt]ime\s+[Cc]omplexity\s*:?\s*(O\([^)]+\))",
+        text,
+    )
+    space_match = re.search(
+        r"[Ss]pace\s+[Cc]omplexity\s*:?\s*(O\([^)]+\))",
+        text,
+    )
+
+    if not time_match and not space_match:
+        return None
+
+    return {
+        "time_complexity": time_match.group(1) if time_match else "See editorial",
+        "space_complexity": space_match.group(1) if space_match else "See editorial",
+    }
 
 
 def timestamp_to_date(ts: str | int) -> str:

@@ -7,7 +7,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from fetcher import fetch_username, fetch_recent_accepted, fetch_submission_code, fetch_problem_details, timestamp_to_date
+from fetcher import (
+    fetch_username,
+    fetch_recent_accepted,
+    fetch_submission_code,
+    fetch_problem_details,
+    fetch_editorial_analysis,
+    _parse_complexity_from_editorial,
+    timestamp_to_date,
+)
 
 
 SESSION = "fake_session"
@@ -130,6 +138,78 @@ class TestFetchProblemDetails:
     def test_returns_none_on_error(self, mock_post):
         mock_post.side_effect = Exception("network error")
         result = fetch_problem_details(SESSION, CSRF, "two-sum")
+        assert result is None
+
+
+class TestParseComplexityFromEditorial:
+    def test_extracts_time_and_space(self):
+        html = "<p>Time complexity: O(n log n)</p><p>Space complexity: O(n)</p>"
+        result = _parse_complexity_from_editorial(html)
+        assert result == {"time_complexity": "O(n log n)", "space_complexity": "O(n)"}
+
+    def test_strips_html_tags(self):
+        html = "<li><b>Time complexity:</b> O(1)</li><li><b>Space complexity:</b> O(1)</li>"
+        result = _parse_complexity_from_editorial(html)
+        assert result["time_complexity"] == "O(1)"
+        assert result["space_complexity"] == "O(1)"
+
+    def test_returns_none_when_no_complexity_found(self):
+        result = _parse_complexity_from_editorial("<p>This problem is easy.</p>")
+        assert result is None
+
+    def test_handles_latex_dollar_signs(self):
+        html = "<p>Time complexity: $O(n^2)$</p><p>Space complexity: $O(1)$</p>"
+        result = _parse_complexity_from_editorial(html)
+        assert result["time_complexity"] == "O(n^2)"
+        assert result["space_complexity"] == "O(1)"
+
+    def test_case_insensitive(self):
+        html = "<p>time complexity: O(n)</p><p>space complexity: O(n)</p>"
+        result = _parse_complexity_from_editorial(html)
+        assert result is not None
+        assert result["time_complexity"] == "O(n)"
+
+
+class TestFetchEditorialAnalysis:
+    @patch("fetcher.requests.post")
+    def test_returns_complexity_when_premium(self, mock_post):
+        mock_post.return_value = _mock_response({
+            "data": {
+                "question": {
+                    "solution": {
+                        "canSeeDetail": True,
+                        "content": "<p>Time complexity: O(n)</p><p>Space complexity: O(1)</p>",
+                    }
+                }
+            }
+        })
+        result = fetch_editorial_analysis(SESSION, CSRF, "two-sum")
+        assert result == {"time_complexity": "O(n)", "space_complexity": "O(1)"}
+
+    @patch("fetcher.requests.post")
+    def test_returns_none_when_cannot_see_detail(self, mock_post):
+        mock_post.return_value = _mock_response({
+            "data": {
+                "question": {
+                    "solution": {"canSeeDetail": False, "content": ""}
+                }
+            }
+        })
+        result = fetch_editorial_analysis(SESSION, CSRF, "two-sum")
+        assert result is None
+
+    @patch("fetcher.requests.post")
+    def test_returns_none_when_no_solution(self, mock_post):
+        mock_post.return_value = _mock_response({
+            "data": {"question": {"solution": None}}
+        })
+        result = fetch_editorial_analysis(SESSION, CSRF, "two-sum")
+        assert result is None
+
+    @patch("fetcher.requests.post")
+    def test_returns_none_on_error(self, mock_post):
+        mock_post.side_effect = Exception("network error")
+        result = fetch_editorial_analysis(SESSION, CSRF, "two-sum")
         assert result is None
 
 
