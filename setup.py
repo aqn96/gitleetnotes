@@ -4,19 +4,17 @@ GitLeetNotes setup script.
 
 Usage:
     pip install -r requirements-setup.txt
+
+    # First-time setup — creates repo, extracts cookies, sets secrets
     python setup.py
 
-What it does:
-  1. Checks GitHub CLI auth
-  2. Creates a public repo from the GitLeetNotes template on your account
-  3. Opens a browser so you can log in to LeetCode — extracts session cookies automatically
-  4. Prompts for your Gemini API key (one paste)
-  5. Sets all three secrets on the new repo via GitHub CLI
-  6. Triggers the first workflow run
+    # Refresh expired LeetCode cookies on an existing repo
+    python setup.py --refresh
 
 Requirements: gh CLI (authenticated), Python 3.10+, playwright
 """
 
+import argparse
 import subprocess
 import sys
 import json
@@ -206,9 +204,42 @@ def configure_repo(repo: str, session: str, csrf: str, gemini_key: str) -> None:
         print_info(f"Go to https://github.com/{repo}/actions and run it manually.")
 
 
+def refresh_cookies(repo: str) -> None:
+    """Re-extracts LeetCode cookies and updates secrets on an existing repo."""
+    print("\033[1mGitLeetNotes — Refresh Cookies\033[0m")
+    print("─" * 40)
+    print_info(f"Refreshing cookies for repo: {repo}")
+
+    session, csrf = get_leetcode_cookies()
+
+    run(["gh", "secret", "set", "LEETCODE_SESSION", "--body", session, "--repo", repo])
+    print_ok("Secret updated: LEETCODE_SESSION")
+
+    run(["gh", "secret", "set", "LEETCODE_CSRF", "--body", csrf, "--repo", repo])
+    print_ok("Secret updated: LEETCODE_CSRF")
+
+    print(f"\n\033[1m\033[32mDone!\033[0m Cookies refreshed for {repo}.")
+    print()
+
+
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
 def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="GitLeetNotes setup and maintenance tool."
+    )
+    parser.add_argument(
+        "--refresh",
+        metavar="OWNER/REPO",
+        help="Refresh expired LeetCode cookies on an existing repo (e.g. octocat/leetcode-notes)",
+    )
+    args = parser.parse_args()
+
+    if args.refresh:
+        check_gh_auth()
+        refresh_cookies(args.refresh)
+        return
+
     print("\033[1mGitLeetNotes Setup\033[0m")
     print("─" * 40)
 
@@ -219,8 +250,10 @@ def main() -> None:
     configure_repo(repo, session, csrf, gemini_key)
 
     print(f"\n\033[1m\033[32mAll done!\033[0m")
-    print(f"  Your repo: https://github.com/{repo}")
-    print(f"  First sync running at: https://github.com/{repo}/actions")
+    print(f"  Your repo:  https://github.com/{repo}")
+    print(f"  Actions:    https://github.com/{repo}/actions")
+    print(f"\n  To refresh cookies later:")
+    print(f"    python setup.py --refresh {repo}")
     print()
 
 

@@ -100,6 +100,34 @@ class TestGetGeminiKey:
 
 # ─── configure_repo ───────────────────────────────────────────────────────────
 
+class TestRefreshCookies:
+    @patch("setup.get_leetcode_cookies", return_value=("new_session", "new_csrf"))
+    @patch("setup.run")
+    def test_updates_both_cookie_secrets(self, mock_run, mock_cookies):
+        s.refresh_cookies("octocat/repo")
+        calls = mock_run.call_args_list
+        secret_names = [c.args[0][3] for c in calls]
+        assert "LEETCODE_SESSION" in secret_names
+        assert "LEETCODE_CSRF" in secret_names
+
+    @patch("setup.get_leetcode_cookies", return_value=("new_session", "new_csrf"))
+    @patch("setup.run")
+    def test_does_not_touch_gemini_secret(self, mock_run, mock_cookies):
+        s.refresh_cookies("octocat/repo")
+        calls = mock_run.call_args_list
+        secret_names = [c.args[0][3] for c in calls if "set" in c.args[0]]
+        assert "GEMINI_API_KEY" not in secret_names
+
+    @patch("setup.get_leetcode_cookies", return_value=("new_session", "new_csrf"))
+    @patch("setup.run")
+    def test_passes_new_cookie_values(self, mock_run, mock_cookies):
+        s.refresh_cookies("octocat/repo")
+        calls = mock_run.call_args_list
+        bodies = {c.args[0][3]: c.args[0][5] for c in calls if len(c.args[0]) > 5}
+        assert bodies.get("LEETCODE_SESSION") == "new_session"
+        assert bodies.get("LEETCODE_CSRF") == "new_csrf"
+
+
 class TestConfigureRepo:
     @patch("setup.run")
     def test_sets_all_three_secrets(self, mock_run):

@@ -1,5 +1,7 @@
 # GitLeetNotes
 
+![Tests](https://github.com/aqn96/gitleetnotes/actions/workflows/test.yml/badge.svg)
+
 > Your LeetCode grind, auto-documented. Every accepted solution becomes a structured study note — pattern, complexity, and key insight included.
 
 ---
@@ -93,7 +95,13 @@ The setup script handles everything automatically:
 
 > **Prerequisite:** [GitHub CLI](https://cli.github.com/) installed and authenticated (`gh auth login`). Python 3.10+.
 
-After setup, the Action runs automatically every day at 9 AM UTC. Session cookies expire every few weeks — when the Action starts failing, just re-run `python setup.py` and choose the same repo name.
+After setup, the Action runs automatically every day at 9 AM UTC. Session cookies expire every few weeks — when the Action starts failing, refresh them with one command:
+
+```bash
+python setup.py --refresh YOUR_USERNAME/YOUR_REPO_NAME
+```
+
+This opens a browser, re-extracts your cookies, and updates the repo secrets. Nothing else changes.
 
 ### Manual setup (if you prefer)
 
