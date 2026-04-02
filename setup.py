@@ -141,7 +141,7 @@ def get_leetcode_cookies() -> tuple[str, str]:
     print_info("The script will detect your login automatically.")
 
     try:
-        from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
+        from playwright.sync_api import sync_playwright
     except ImportError:
         print_error("playwright not installed. Run: pip install -r requirements-setup.txt")
         sys.exit(1)
@@ -164,29 +164,23 @@ def get_leetcode_cookies() -> tuple[str, str]:
         page = context.new_page()
 
         page.goto(LEETCODE_LOGIN_URL)
+        page.bring_to_front()
 
-        print_info("Waiting for login (up to 3 minutes)...")
+        print_info("Waiting for login (up to 3 minutes) — check your browser window...")
 
-        try:
-            # Wait until we're redirected away from the login page
-            page.wait_for_url(
-                lambda url: "login" not in url and "leetcode.com" in url,
-                timeout=180_000,
-            )
-        except PWTimeout:
-            print_error("Timed out waiting for LeetCode login.")
-            browser.close()
-            sys.exit(1)
-
-        # Give the session a moment to be set
-        page.wait_for_timeout(2000)
-
-        cookies = context.cookies()
-        for c in cookies:
-            if c["name"] == "LEETCODE_SESSION":
-                session = c["value"]
-            elif c["name"] == "csrftoken":
-                csrf = c["value"]
+        # Poll for the LEETCODE_SESSION cookie rather than watching URLs.
+        # URL-based detection breaks with Google/GitHub OAuth redirects.
+        deadline = time.time() + 180
+        while time.time() < deadline:
+            cookies = context.cookies()
+            for c in cookies:
+                if c["name"] == "LEETCODE_SESSION":
+                    session = c["value"]
+                elif c["name"] == "csrftoken":
+                    csrf = c["value"]
+            if session and csrf:
+                break
+            page.wait_for_timeout(1500)
 
         browser.close()
 
