@@ -146,6 +146,14 @@ def get_leetcode_cookies() -> tuple[str, str]:
         print_error("playwright not installed. Run: pip install -r requirements-setup.txt")
         sys.exit(1)
 
+    # Install browser binaries if not already present — safe to run multiple times
+    print_info("Ensuring Playwright browser is installed...")
+    try:
+        run(["playwright", "install", "chromium"], capture=True)
+    except subprocess.CalledProcessError as e:
+        print_error(f"Failed to install Playwright browser: {e.stderr or e}")
+        sys.exit(1)
+
     session = None
     csrf = None
 
