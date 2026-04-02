@@ -27,9 +27,9 @@ DEFAULT_REPO_NAME = "leetcode-notes"
 LEETCODE_LOGIN_URL = "https://leetcode.com/accounts/login/"
 GEMINI_KEY_URL = "https://aistudio.google.com/app/apikey"
 
-# Minimal files written into the user's new notes repo.
-# `secrets: inherit` passes all repo secrets to the reusable workflow —
-# simpler and avoids YAML expression syntax issues in the secrets block.
+# Minimal workflow written into the user's notes repo.
+# Checks out gitleetnotes at runtime to run the sync scripts —
+# users automatically get bug fixes without touching their repo.
 _SYNC_YML = f"""\
 name: Sync LeetCode Solutions
 
@@ -38,10 +38,50 @@ on:
     - cron: "0 9 * * *"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   sync:
-    uses: {RUNNER_REPO}/.github/workflows/sync-runner.yml@main
-    secrets: inherit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout notes repo
+        uses: actions/checkout@v4
+
+      - name: Checkout GitLeetNotes runner
+        uses: actions/checkout@v4
+        with:
+          repository: {RUNNER_REPO}
+          path: _runner
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r _runner/requirements.txt
+
+      - name: Run sync
+        env:
+          LEETCODE_SESSION: ${{{{ secrets.LEETCODE_SESSION }}}}
+          LEETCODE_CSRF: ${{{{ secrets.LEETCODE_CSRF }}}}
+          GEMINI_API_KEY: ${{{{ secrets.GEMINI_API_KEY }}}}
+        run: python _runner/src/main.py
+
+      - name: Commit and push if changes exist
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git rm -r --cached _runner 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "No new solutions today."
+          else
+            git commit -m "chore: sync LeetCode solutions [$(date -u +%Y-%m-%d)]"
+            git push
+          fi
 """
 
 _README = """\
