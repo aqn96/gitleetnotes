@@ -59,6 +59,7 @@ def record_solution(
     pattern: str,
     note_path: str,
     solved_on: str,
+    lang: str = "",
 ) -> bool:
     """
     Adds a solution to the progress dict.
@@ -73,6 +74,7 @@ def record_solution(
         "slug": slug,
         "difficulty": difficulty,
         "pattern": pattern,
+        "lang": lang,
         "note_path": note_path,
         "solved_on": solved_on,
     }

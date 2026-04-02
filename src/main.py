@@ -120,18 +120,109 @@ def run() -> int:
             pattern=analysis["pattern"],
             note_path=str(note_path),
             solved_on=solved_on,
+            lang=sub["lang"],
         )
 
         if is_new:
             new_count += 1
             print(f"    saved: {note_path}")
 
+    # Re-analyze any notes that previously fell back to "Unknown" (e.g. rate limit hit)
+    retry_count = _retry_unknown(progress, lc_session, lc_csrf, gemini_key)
+    if retry_count:
+        print(f"  Re-analyzed {retry_count} previously-unknown note(s).")
+
     save_progress(progress, PROGRESS_PATH)
 
     readme_content = generate_readme(progress)
     README_PATH.write_text(readme_content, encoding="utf-8")
-    print(f"\nDone. {new_count} new solution(s) added.")
+    print(f"\nDone. {new_count} new, {retry_count} re-analyzed.")
     return new_count
+
+
+def _retry_unknown(progress: dict, session: str, csrf: str, gemini_key: str) -> int:
+    """
+    Finds solved entries where pattern=='Unknown' (Gemini failed on a previous run)
+    and re-runs analysis. Updates the note file and progress entry in place.
+    Returns the number of entries successfully re-analyzed.
+    """
+    unknowns = [
+        (sub_id, entry)
+        for sub_id, entry in progress.get("solved", {}).items()
+        if entry.get("pattern") == "Unknown"
+    ]
+    if not unknowns:
+        return 0
+
+    print(f"Re-analyzing {len(unknowns)} note(s) with unknown pattern...")
+    fixed = 0
+
+    for sub_id, entry in unknowns:
+        title = entry["title"]
+        print(f"  re-analyzing: {title}")
+
+        code = fetch_submission_code(session, csrf, sub_id)
+        if not code:
+            print(f"    WARN: could not fetch code, skipping.")
+            continue
+
+        details = fetch_problem_details(session, csrf, entry["slug"])
+        if not details:
+            print(f"    WARN: could not fetch problem details, skipping.")
+            continue
+
+        difficulty = details.get("difficulty", "Unknown")
+        tags = [t["name"] for t in details.get("topicTags", [])]
+        lang = entry.get("lang", "python3")
+
+        analysis = analyze_solution(
+            title=title,
+            difficulty=difficulty,
+            lang=lang,
+            code=code,
+            api_key=gemini_key,
+        )
+        if analysis["pattern"] == "Unknown":
+            print(f"    WARN: still unknown, skipping.")
+            continue
+
+        # Update the note file
+        note_content = generate_note(
+            problem_id=entry["problem_id"],
+            title=title,
+            slug=entry["slug"],
+            difficulty=difficulty,
+            tags=tags,
+            lang=lang,
+            code=code,
+            analysis=analysis,
+            solved_on=entry["solved_on"],
+        )
+        note_path = save_note(
+            solutions_dir=SOLUTIONS_DIR,
+            pattern=analysis["pattern"],
+            problem_id=entry["problem_id"],
+            slug=entry["slug"],
+            content=note_content,
+        )
+
+        # Update progress entry
+        old_pattern = entry["pattern"]
+        entry["pattern"] = analysis["pattern"]
+        entry["note_path"] = str(note_path)
+
+        # Fix pattern counts
+        progress["by_pattern"][old_pattern] = max(
+            0, progress["by_pattern"].get(old_pattern, 1) - 1
+        )
+        progress["by_pattern"][analysis["pattern"]] = (
+            progress["by_pattern"].get(analysis["pattern"], 0) + 1
+        )
+
+        fixed += 1
+        print(f"    updated: {note_path}")
+
+    return fixed
 
 
 if __name__ == "__main__":
