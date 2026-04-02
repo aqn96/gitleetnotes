@@ -76,27 +76,34 @@ Before an interview you don't re-solve 50 problems — you open your repo and se
 
 ## Setup
 
-### 1. Use this repo as a template
+Two commands. That's it.
 
-Click **"Use this template"** → **"Create a new repository"** on GitHub.
+```bash
+pip install -r requirements-setup.txt
+python setup.py
+```
 
-Make it **public** so GitHub Actions minutes are free (2,000 min/month on free tier).
+The setup script handles everything automatically:
 
-### 2. Get your LeetCode session cookies
+1. **Creates your repo** from this template via GitHub CLI — no clicking
+2. **Opens a browser window** for LeetCode login — you log in once, the script extracts your session cookies automatically (Playwright watches for the login event and pulls the cookies without you touching DevTools)
+3. **Prompts for your Gemini API key** — one paste ([get a free key here](https://aistudio.google.com/app/apikey), no billing required)
+4. **Sets all three secrets** on your new repo via GitHub CLI
+5. **Triggers your first sync** immediately
 
-1. Log in to [leetcode.com](https://leetcode.com)
-2. Open DevTools → Application → Cookies → `https://leetcode.com`
-3. Copy the values for `LEETCODE_SESSION` and `csrftoken`
+> **Prerequisite:** [GitHub CLI](https://cli.github.com/) installed and authenticated (`gh auth login`). Python 3.10+.
 
-> Session cookies expire every few weeks. When the Action starts failing with auth errors, just refresh these secrets.
+After setup, the Action runs automatically every day at 9 AM UTC. Session cookies expire every few weeks — when the Action starts failing, just re-run `python setup.py` and choose the same repo name.
 
-### 3. Get a free Gemini API key
+### Manual setup (if you prefer)
 
-Go to [Google AI Studio](https://aistudio.google.com/app/apikey) and create a key — it's free, no billing required.
+<details>
+<summary>Expand for step-by-step instructions</summary>
 
-### 4. Add secrets to your repo
-
-**Settings → Secrets and variables → Actions → New repository secret**
+1. Click **"Use this template"** → **"Create a new repository"** on GitHub. Make it **public**.
+2. Log in to [leetcode.com](https://leetcode.com), open DevTools → Application → Cookies, and copy `LEETCODE_SESSION` and `csrftoken`.
+3. Get a free Gemini API key at [Google AI Studio](https://aistudio.google.com/app/apikey).
+4. Go to your repo → **Settings → Secrets and variables → Actions** and add:
 
 | Secret name | Value |
 |---|---|
@@ -104,11 +111,9 @@ Go to [Google AI Studio](https://aistudio.google.com/app/apikey) and create a ke
 | `LEETCODE_CSRF` | Your LeetCode csrftoken cookie |
 | `GEMINI_API_KEY` | Your Gemini API key |
 
-### 5. Trigger your first run
+5. Go to **Actions → Sync LeetCode Solutions → Run workflow**.
 
-Go to **Actions → Sync LeetCode Solutions → Run workflow**.
-
-After that, it runs automatically every day.
+</details>
 
 ---
 
