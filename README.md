@@ -78,30 +78,34 @@ Before an interview you don't re-solve 50 problems — you open your repo and se
 
 ## Setup
 
-Two commands. That's it.
+Clone this repo and run the setup script. It creates **your own personal repo** on your GitHub account and configures everything — you don't need to keep this clone afterwards.
 
 ```bash
+git clone https://github.com/aqn96/gitleetnotes
+cd gitleetnotes
 pip install -r requirements-setup.txt
 python setup.py
 ```
 
-The setup script handles everything automatically:
+The script walks you through:
 
-1. **Creates your repo** from this template via GitHub CLI — no clicking
-2. **Opens a browser window** for LeetCode login — you log in once, the script extracts your session cookies automatically (Playwright watches for the login event and pulls the cookies without you touching DevTools)
+1. **Creates your repo** — makes a new public repo (e.g. `your-username/leetcode-notes`) on your GitHub account from this template, via GitHub CLI
+2. **Extracts your LeetCode cookies** — opens a browser window, you log in once, the script pulls your session cookies automatically. No DevTools, no copy-pasting.
 3. **Prompts for your Gemini API key** — one paste ([get a free key here](https://aistudio.google.com/app/apikey), no billing required)
-4. **Sets all three secrets** on your new repo via GitHub CLI
-5. **Triggers your first sync** immediately
+4. **Sets all secrets** on your new repo via GitHub CLI
+5. **Triggers your first sync** — your repo gets its first notes within a minute
 
-> **Prerequisite:** [GitHub CLI](https://cli.github.com/) installed and authenticated (`gh auth login`). Python 3.10+.
+After that, your personal repo runs on its own every day. You can delete this local clone — everything lives in your new repo from here on.
 
-After setup, the Action runs automatically every day at 9 AM UTC. Session cookies expire every few weeks — when the Action starts failing, refresh them with one command:
+> **Prerequisites:** [GitHub CLI](https://cli.github.com/) installed and authenticated (`gh auth login`). Python 3.10+.
+
+**When cookies expire** (every few weeks), run this from the same clone:
 
 ```bash
 python setup.py --refresh YOUR_USERNAME/YOUR_REPO_NAME
 ```
 
-This opens a browser, re-extracts your cookies, and updates the repo secrets. Nothing else changes.
+Opens a browser, re-extracts cookies, updates your repo secrets. Done in under a minute.
 
 ### Manual setup (if you prefer)
 
