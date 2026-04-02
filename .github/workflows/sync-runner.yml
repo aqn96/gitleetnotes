@@ -4,13 +4,6 @@ name: Sync Runner (Reusable)
 #   uses: aqn96/gitleetnotes/.github/workflows/sync-runner.yml@main
 on:
   workflow_call:
-    secrets:
-      LEETCODE_SESSION:
-        required: true
-      LEETCODE_CSRF:
-        required: true
-      GEMINI_API_KEY:
-        required: true
 
 jobs:
   sync:

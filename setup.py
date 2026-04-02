@@ -27,7 +27,9 @@ DEFAULT_REPO_NAME = "leetcode-notes"
 LEETCODE_LOGIN_URL = "https://leetcode.com/accounts/login/"
 GEMINI_KEY_URL = "https://aistudio.google.com/app/apikey"
 
-# Minimal files written into the user's new notes repo
+# Minimal files written into the user's new notes repo.
+# `secrets: inherit` passes all repo secrets to the reusable workflow —
+# simpler and avoids YAML expression syntax issues in the secrets block.
 _SYNC_YML = f"""\
 name: Sync LeetCode Solutions
 
@@ -36,16 +38,10 @@ on:
     - cron: "0 9 * * *"
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   sync:
     uses: {RUNNER_REPO}/.github/workflows/sync-runner.yml@main
-    secrets:
-      LEETCODE_SESSION: ${{{{ secrets.LEETCODE_SESSION }}}}
-      LEETCODE_CSRF: ${{{{ secrets.LEETCODE_CSRF }}}}
-      GEMINI_API_KEY: ${{{{ secrets.GEMINI_API_KEY }}}}
+    secrets: inherit
 """
 
 _README = """\
