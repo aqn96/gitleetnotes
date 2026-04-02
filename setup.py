@@ -162,14 +162,34 @@ def create_repo(username: str) -> str:
 
     if repo_exists(full_name):
         print_info(f"Repo {full_name} already exists.")
-        answer = input(
-            "  Continue anyway? (secrets will be refreshed, nothing else changes) [Y/n]: "
-        ).strip().lower()
-        if answer not in ("", "y", "yes"):
-            print_info("Aborted. Run again and choose a different repo name.")
+        print()
+        print("  What would you like to do?")
+        print("    [1] Keep it — just refresh secrets (default)")
+        print("    [2] Delete and recreate — fresh start, all notes will be lost")
+        print("    [3] Abort")
+        choice = input("  Choice [1]: ").strip() or "1"
+
+        if choice == "3":
+            print_info("Aborted.")
             sys.exit(0)
-        print_ok(f"Using existing repo: https://github.com/{full_name}")
-        return full_name
+        elif choice == "2":
+            print_info(f"Deleting {full_name} ...")
+            try:
+                run(["gh", "repo", "delete", full_name, "--yes"], capture=True)
+                print_ok("Deleted.")
+            except subprocess.CalledProcessError as e:
+                err = e.stderr or ""
+                if "delete_repo" in err:
+                    print_error("Missing 'delete_repo' permission. Run:")
+                    print_info("  gh auth refresh -h github.com -s delete_repo")
+                    print_info("Then re-run setup.py.")
+                else:
+                    print_error(f"Could not delete repo: {err or e}")
+                sys.exit(1)
+            # Fall through to create a fresh one below
+        else:
+            print_ok(f"Using existing repo: https://github.com/{full_name}")
+            return full_name
 
     print_info(f"Creating {full_name} ...")
     try:

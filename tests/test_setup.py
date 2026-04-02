@@ -137,27 +137,46 @@ class TestCreateRepo:
             s.create_repo("octocat")
 
     @patch("setup.repo_exists", return_value=True)
-    @patch("builtins.input", side_effect=["", "y"])
-    def test_existing_repo_prompts_for_confirmation(self, mock_input, mock_exists):
+    @patch("builtins.input", side_effect=["", "1"])  # name, then keep
+    def test_existing_repo_choice1_keeps_it(self, mock_input, mock_exists):
         result = s.create_repo("octocat")
         assert result == f"octocat/{s.DEFAULT_REPO_NAME}"
 
     @patch("setup.repo_exists", return_value=True)
-    @patch("builtins.input", side_effect=["", "n"])
-    def test_existing_repo_aborts_on_no(self, mock_input, mock_exists):
-        with pytest.raises(SystemExit):
-            s.create_repo("octocat")
-
-    @patch("setup.repo_exists", return_value=True)
-    @patch("builtins.input", side_effect=["", ""])
-    def test_existing_repo_continues_on_empty_confirm(self, mock_input, mock_exists):
+    @patch("builtins.input", side_effect=["", ""])  # empty = keep (default)
+    def test_existing_repo_empty_choice_keeps_it(self, mock_input, mock_exists):
         result = s.create_repo("octocat")
         assert "octocat" in result
 
+    @patch("setup.repo_exists", return_value=True)
+    @patch("builtins.input", side_effect=["", "3"])  # name, then abort
+    def test_existing_repo_choice3_aborts(self, mock_input, mock_exists):
+        with pytest.raises(SystemExit):
+            s.create_repo("octocat")
+
+    @patch("setup.scaffold_repo")
+    @patch("setup.run")
+    @patch("setup.repo_exists", return_value=True)
+    @patch("builtins.input", side_effect=["", "2"])  # name, then delete+recreate
+    def test_existing_repo_choice2_deletes_and_recreates(self, mock_input, mock_exists, mock_run, mock_scaffold):
+        s.create_repo("octocat")
+        cmds = [c.args[0] for c in mock_run.call_args_list]
+        assert any("delete" in cmd for cmd in cmds)
+        assert any("create" in cmd for cmd in cmds)
+        mock_scaffold.assert_called_once()
+
+    @patch("setup.run")
+    @patch("setup.repo_exists", return_value=True)
+    @patch("builtins.input", side_effect=["", "2"])
+    def test_delete_missing_scope_shows_helpful_error(self, mock_input, mock_exists, mock_run):
+        mock_run.side_effect = subprocess.CalledProcessError(1, "gh", stderr="delete_repo scope required")
+        with pytest.raises(SystemExit):
+            s.create_repo("octocat")
+
     @patch("setup.scaffold_repo")
     @patch("setup.repo_exists", return_value=True)
-    @patch("builtins.input", side_effect=["", "y"])
-    def test_existing_repo_does_not_scaffold(self, mock_input, mock_exists, mock_scaffold):
+    @patch("builtins.input", side_effect=["", "1"])
+    def test_existing_repo_keep_does_not_scaffold(self, mock_input, mock_exists, mock_scaffold):
         s.create_repo("octocat")
         mock_scaffold.assert_not_called()
 
