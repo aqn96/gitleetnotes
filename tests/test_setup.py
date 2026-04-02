@@ -40,48 +40,83 @@ class TestCheckGhAuth:
 
 # ─── create_repo ──────────────────────────────────────────────────────────────
 
+class TestRepoExists:
+    @patch("setup.run")
+    def test_returns_true_when_repo_found(self, mock_run):
+        mock_run.return_value = MagicMock()
+        assert s.repo_exists("octocat/repo") is True
+
+    @patch("setup.run")
+    def test_returns_false_when_repo_not_found(self, mock_run):
+        mock_run.side_effect = subprocess.CalledProcessError(1, "gh", stderr="")
+        assert s.repo_exists("octocat/nonexistent") is False
+
+
 class TestCreateRepo:
+    @patch("setup.time")
+    @patch("setup.repo_exists", return_value=False)
     @patch("setup.run")
     @patch("builtins.input", return_value="")
-    def test_uses_default_name_on_empty_input(self, mock_input, mock_run):
+    def test_uses_default_name_on_empty_input(self, mock_input, mock_run, mock_exists, mock_time):
         result = s.create_repo("octocat")
         assert result == f"octocat/{s.DEFAULT_REPO_NAME}"
 
+    @patch("setup.time")
+    @patch("setup.repo_exists", return_value=False)
     @patch("setup.run")
     @patch("builtins.input", return_value="my-leet-notes")
-    def test_uses_provided_name(self, mock_input, mock_run):
+    def test_uses_provided_name(self, mock_input, mock_run, mock_exists, mock_time):
         result = s.create_repo("octocat")
         assert result == "octocat/my-leet-notes"
 
+    @patch("setup.time")
+    @patch("setup.repo_exists", return_value=False)
     @patch("setup.run")
     @patch("builtins.input", return_value="")
-    def test_calls_gh_repo_create(self, mock_input, mock_run):
+    def test_calls_gh_repo_create(self, mock_input, mock_run, mock_exists, mock_time):
         s.create_repo("octocat")
-        mock_run.assert_called_once()
         args = mock_run.call_args.args[0]
         assert "gh" in args
         assert "repo" in args
         assert "create" in args
         assert "--template" in args
 
+    @patch("setup.time")
+    @patch("setup.repo_exists", return_value=False)
     @patch("setup.run")
     @patch("builtins.input", return_value="")
-    def test_continues_if_repo_already_exists(self, mock_input, mock_run):
-        mock_run.side_effect = subprocess.CalledProcessError(
-            1, "gh", stderr="already exists"
-        )
-        # Should not raise
-        result = s.create_repo("octocat")
-        assert "octocat" in result
-
-    @patch("setup.run")
-    @patch("builtins.input", return_value="")
-    def test_exits_on_unexpected_error(self, mock_input, mock_run):
+    def test_exits_on_create_error(self, mock_input, mock_run, mock_exists, mock_time):
         mock_run.side_effect = subprocess.CalledProcessError(
             1, "gh", stderr="some unexpected error"
         )
         with pytest.raises(SystemExit):
             s.create_repo("octocat")
+
+    @patch("setup.repo_exists", return_value=True)
+    @patch("builtins.input", side_effect=["", "y"])  # repo name, then confirm
+    def test_existing_repo_prompts_for_confirmation(self, mock_input, mock_exists):
+        result = s.create_repo("octocat")
+        assert result == f"octocat/{s.DEFAULT_REPO_NAME}"
+
+    @patch("setup.repo_exists", return_value=True)
+    @patch("builtins.input", side_effect=["", "n"])  # repo name, then deny
+    def test_existing_repo_aborts_on_no(self, mock_input, mock_exists):
+        with pytest.raises(SystemExit):
+            s.create_repo("octocat")
+
+    @patch("setup.repo_exists", return_value=True)
+    @patch("builtins.input", side_effect=["", ""])  # empty = yes by default
+    def test_existing_repo_continues_on_empty_confirm(self, mock_input, mock_exists):
+        result = s.create_repo("octocat")
+        assert "octocat" in result
+
+    @patch("setup.time")
+    @patch("setup.repo_exists", return_value=False)
+    @patch("setup.run")
+    @patch("builtins.input", return_value="")
+    def test_waits_after_creating_new_repo(self, mock_input, mock_run, mock_exists, mock_time):
+        s.create_repo("octocat")
+        mock_time.sleep.assert_called_once()
 
 
 # ─── get_gemini_key ───────────────────────────────────────────────────────────
@@ -157,10 +192,15 @@ class TestConfigureRepo:
         assert bodies.get("LEETCODE_CSRF") == "my_csrf"
         assert bodies.get("GEMINI_API_KEY") == "my_gemini"
 
+    @patch("setup.time")
     @patch("setup.run")
-    def test_handles_workflow_trigger_failure_gracefully(self, mock_run):
-        # First 3 calls (secrets) succeed, 4th (workflow) fails
-        mock_run.side_effect = [None, None, None,
-                                subprocess.CalledProcessError(1, "gh", stderr="")]
-        # Should not raise
+    def test_handles_workflow_trigger_failure_gracefully(self, mock_run, mock_time):
+        # 3 secret-set calls succeed, all 3 workflow-run retries fail
+        mock_run.side_effect = [
+            None, None, None,  # secrets
+            subprocess.CalledProcessError(1, "gh", stderr=""),  # retry 1
+            subprocess.CalledProcessError(1, "gh", stderr=""),  # retry 2
+            subprocess.CalledProcessError(1, "gh", stderr=""),  # retry 3
+        ]
+        # Should not raise — workflow trigger failure is non-fatal
         s.configure_repo("octocat/repo", "s", "c", "g")

@@ -17,8 +17,8 @@ Requirements: gh CLI (authenticated), Python 3.10+, playwright
 import argparse
 import subprocess
 import sys
-import json
 import getpass
+import time
 from pathlib import Path
 
 TEMPLATE_REPO = "aqn96/gitleetnotes"
@@ -74,15 +74,37 @@ def check_gh_auth() -> str:
 
 # ─── Step 2: Create repo from template ────────────────────────────────────────
 
+def repo_exists(full_name: str) -> bool:
+    """Returns True if the repo already exists on GitHub."""
+    try:
+        run(["gh", "repo", "view", full_name], capture=True)
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+
 def create_repo(username: str) -> str:
     """
-    Prompts for a repo name, creates a public repo from the template.
+    Prompts for a repo name. If it already exists, asks the user whether to
+    continue (which will update secrets) or abort. If it doesn't exist, creates
+    it from the template and waits for GitHub to index the files.
     Returns the full repo identifier (owner/name).
     """
     print_step(2, "Creating your GitLeetNotes repo")
 
     name = input(f"  Repo name [{DEFAULT_REPO_NAME}]: ").strip() or DEFAULT_REPO_NAME
     full_name = f"{username}/{name}"
+
+    if repo_exists(full_name):
+        print_info(f"Repo {full_name} already exists.")
+        answer = input(
+            "  Continue anyway? (secrets will be refreshed, nothing else changes) [Y/n]: "
+        ).strip().lower()
+        if answer not in ("", "y", "yes"):
+            print_info("Aborted. Run again and choose a different repo name.")
+            sys.exit(0)
+        print_ok(f"Using existing repo: https://github.com/{full_name}")
+        return full_name
 
     print_info(f"Creating {full_name} from template {TEMPLATE_REPO} ...")
     try:
@@ -91,13 +113,17 @@ def create_repo(username: str) -> str:
             "--template", TEMPLATE_REPO,
             "--public",
         ])
-        print_ok(f"Repo created: https://github.com/{full_name}")
     except subprocess.CalledProcessError as e:
-        if "already exists" in (e.stderr or ""):
-            print_info(f"Repo {full_name} already exists — using it.")
-        else:
-            print_error(f"Failed to create repo: {e.stderr}")
-            sys.exit(1)
+        print_error(f"Failed to create repo: {e.stderr or e}")
+        sys.exit(1)
+
+    print_ok(f"Repo created: https://github.com/{full_name}")
+
+    # GitHub takes a moment to populate the repo from the template.
+    # Without this wait, `gh workflow run` fails because the workflow
+    # file hasn't been indexed yet.
+    print_info("Waiting for GitHub to initialize repo contents...")
+    time.sleep(6)
 
     return full_name
 
@@ -193,15 +219,26 @@ def configure_repo(repo: str, session: str, csrf: str, gemini_key: str) -> None:
         run(["gh", "secret", "set", name, "--body", value, "--repo", repo])
         print_ok(f"Secret set: {name}")
 
-    # Trigger the workflow
+    # Trigger the workflow — retry a few times in case GitHub is still
+    # indexing a freshly created repo.
     print_info("Triggering first workflow run...")
-    try:
-        run(["gh", "workflow", "run", "sync.yml", "--repo", repo])
+    triggered = False
+    for attempt in range(1, 4):
+        try:
+            run(["gh", "workflow", "run", "sync.yml", "--repo", repo])
+            triggered = True
+            break
+        except subprocess.CalledProcessError:
+            if attempt < 3:
+                print_info(f"  Not ready yet, retrying in 5 s... ({attempt}/3)")
+                time.sleep(5)
+
+    if triggered:
         print_ok("Workflow triggered — check progress at:")
         print_info(f"  https://github.com/{repo}/actions")
-    except subprocess.CalledProcessError:
-        print_info("Could not trigger workflow automatically (it may need a push first).")
-        print_info(f"Go to https://github.com/{repo}/actions and run it manually.")
+    else:
+        print_info("Could not trigger automatically — trigger it manually:")
+        print_info(f"  https://github.com/{repo}/actions")
 
 
 def refresh_cookies(repo: str) -> None:
