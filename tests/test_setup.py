@@ -52,71 +52,114 @@ class TestRepoExists:
         assert s.repo_exists("octocat/nonexistent") is False
 
 
+class TestScaffoldRepo:
+    @patch("setup.tempfile.TemporaryDirectory")
+    @patch("setup.run")
+    def test_creates_workflow_file(self, mock_run, mock_tmpdir, tmp_path):
+        mock_tmpdir.return_value.__enter__ = lambda s: str(tmp_path)
+        mock_tmpdir.return_value.__exit__ = MagicMock(return_value=False)
+        s.scaffold_repo("octocat/repo")
+        wf = tmp_path / ".github" / "workflows" / "sync.yml"
+        assert wf.exists()
+
+    @patch("setup.tempfile.TemporaryDirectory")
+    @patch("setup.run")
+    def test_workflow_calls_reusable(self, mock_run, mock_tmpdir, tmp_path):
+        mock_tmpdir.return_value.__enter__ = lambda s: str(tmp_path)
+        mock_tmpdir.return_value.__exit__ = MagicMock(return_value=False)
+        s.scaffold_repo("octocat/repo")
+        content = (tmp_path / ".github" / "workflows" / "sync.yml").read_text()
+        assert "sync-runner.yml" in content
+        assert s.RUNNER_REPO in content
+
+    @patch("setup.tempfile.TemporaryDirectory")
+    @patch("setup.run")
+    def test_creates_readme(self, mock_run, mock_tmpdir, tmp_path):
+        mock_tmpdir.return_value.__enter__ = lambda s: str(tmp_path)
+        mock_tmpdir.return_value.__exit__ = MagicMock(return_value=False)
+        s.scaffold_repo("octocat/repo")
+        assert (tmp_path / "README.md").exists()
+
+    @patch("setup.tempfile.TemporaryDirectory")
+    @patch("setup.run")
+    def test_pushes_to_correct_remote(self, mock_run, mock_tmpdir, tmp_path):
+        mock_tmpdir.return_value.__enter__ = lambda s: str(tmp_path)
+        mock_tmpdir.return_value.__exit__ = MagicMock(return_value=False)
+        s.scaffold_repo("octocat/my-notes")
+        all_cmds = [c.args[0] for c in mock_run.call_args_list]
+        remote_cmd = next(c for c in all_cmds if "remote" in c and "add" in c)
+        assert "https://github.com/octocat/my-notes.git" in remote_cmd
+
+
 class TestCreateRepo:
-    @patch("setup.time")
+    @patch("setup.scaffold_repo")
     @patch("setup.repo_exists", return_value=False)
     @patch("setup.run")
     @patch("builtins.input", return_value="")
-    def test_uses_default_name_on_empty_input(self, mock_input, mock_run, mock_exists, mock_time):
+    def test_uses_default_name_on_empty_input(self, mock_input, mock_run, mock_exists, mock_scaffold):
         result = s.create_repo("octocat")
         assert result == f"octocat/{s.DEFAULT_REPO_NAME}"
 
-    @patch("setup.time")
+    @patch("setup.scaffold_repo")
     @patch("setup.repo_exists", return_value=False)
     @patch("setup.run")
     @patch("builtins.input", return_value="my-leet-notes")
-    def test_uses_provided_name(self, mock_input, mock_run, mock_exists, mock_time):
+    def test_uses_provided_name(self, mock_input, mock_run, mock_exists, mock_scaffold):
         result = s.create_repo("octocat")
         assert result == "octocat/my-leet-notes"
 
-    @patch("setup.time")
+    @patch("setup.scaffold_repo")
     @patch("setup.repo_exists", return_value=False)
     @patch("setup.run")
     @patch("builtins.input", return_value="")
-    def test_calls_gh_repo_create(self, mock_input, mock_run, mock_exists, mock_time):
+    def test_calls_gh_repo_create(self, mock_input, mock_run, mock_exists, mock_scaffold):
         s.create_repo("octocat")
         args = mock_run.call_args.args[0]
-        assert "gh" in args
-        assert "repo" in args
-        assert "create" in args
-        assert "--template" in args
+        assert args[:3] == ["gh", "repo", "create"]
+        assert "--public" in args
+        assert "--template" not in args
 
-    @patch("setup.time")
+    @patch("setup.scaffold_repo")
     @patch("setup.repo_exists", return_value=False)
     @patch("setup.run")
     @patch("builtins.input", return_value="")
-    def test_exits_on_create_error(self, mock_input, mock_run, mock_exists, mock_time):
-        mock_run.side_effect = subprocess.CalledProcessError(
-            1, "gh", stderr="some unexpected error"
-        )
+    def test_calls_scaffold_after_create(self, mock_input, mock_run, mock_exists, mock_scaffold):
+        s.create_repo("octocat")
+        mock_scaffold.assert_called_once_with(f"octocat/{s.DEFAULT_REPO_NAME}")
+
+    @patch("setup.scaffold_repo")
+    @patch("setup.repo_exists", return_value=False)
+    @patch("setup.run")
+    @patch("builtins.input", return_value="")
+    def test_exits_on_create_error(self, mock_input, mock_run, mock_exists, mock_scaffold):
+        mock_run.side_effect = subprocess.CalledProcessError(1, "gh", stderr="error")
         with pytest.raises(SystemExit):
             s.create_repo("octocat")
 
     @patch("setup.repo_exists", return_value=True)
-    @patch("builtins.input", side_effect=["", "y"])  # repo name, then confirm
+    @patch("builtins.input", side_effect=["", "y"])
     def test_existing_repo_prompts_for_confirmation(self, mock_input, mock_exists):
         result = s.create_repo("octocat")
         assert result == f"octocat/{s.DEFAULT_REPO_NAME}"
 
     @patch("setup.repo_exists", return_value=True)
-    @patch("builtins.input", side_effect=["", "n"])  # repo name, then deny
+    @patch("builtins.input", side_effect=["", "n"])
     def test_existing_repo_aborts_on_no(self, mock_input, mock_exists):
         with pytest.raises(SystemExit):
             s.create_repo("octocat")
 
     @patch("setup.repo_exists", return_value=True)
-    @patch("builtins.input", side_effect=["", ""])  # empty = yes by default
+    @patch("builtins.input", side_effect=["", ""])
     def test_existing_repo_continues_on_empty_confirm(self, mock_input, mock_exists):
         result = s.create_repo("octocat")
         assert "octocat" in result
 
-    @patch("setup.time")
-    @patch("setup.repo_exists", return_value=False)
-    @patch("setup.run")
-    @patch("builtins.input", return_value="")
-    def test_waits_after_creating_new_repo(self, mock_input, mock_run, mock_exists, mock_time):
+    @patch("setup.scaffold_repo")
+    @patch("setup.repo_exists", return_value=True)
+    @patch("builtins.input", side_effect=["", "y"])
+    def test_existing_repo_does_not_scaffold(self, mock_input, mock_exists, mock_scaffold):
         s.create_repo("octocat")
-        mock_time.sleep.assert_called_once()
+        mock_scaffold.assert_not_called()
 
 
 # ─── get_gemini_key ───────────────────────────────────────────────────────────

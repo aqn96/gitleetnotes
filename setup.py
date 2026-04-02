@@ -18,14 +18,51 @@ import argparse
 import subprocess
 import sys
 import getpass
+import tempfile
 import time
 from pathlib import Path
 
-TEMPLATE_REPO = "aqn96/gitleetnotes"
+RUNNER_REPO = "aqn96/gitleetnotes"
 DEFAULT_REPO_NAME = "leetcode-notes"
 LEETCODE_LOGIN_URL = "https://leetcode.com/accounts/login/"
-LEETCODE_HOME_URL = "https://leetcode.com/"
 GEMINI_KEY_URL = "https://aistudio.google.com/app/apikey"
+
+# Minimal files written into the user's new notes repo
+_SYNC_YML = f"""\
+name: Sync LeetCode Solutions
+
+on:
+  schedule:
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    uses: {RUNNER_REPO}/.github/workflows/sync-runner.yml@main
+    secrets:
+      LEETCODE_SESSION: ${{{{ secrets.LEETCODE_SESSION }}}}
+      LEETCODE_CSRF: ${{{{ secrets.LEETCODE_CSRF }}}}
+      GEMINI_API_KEY: ${{{{ secrets.GEMINI_API_KEY }}}}
+"""
+
+_README = """\
+# My LeetCode Study Notes
+
+> Powered by [GitLeetNotes](https://github.com/aqn96/gitleetnotes).
+
+This README will be replaced with your live progress dashboard after the first sync.
+
+Go to **Actions → Sync LeetCode Solutions → Run workflow** to trigger it now.
+"""
+
+_GITIGNORE = """\
+_runner/
+__pycache__/
+*.pyc
+"""
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -83,14 +120,42 @@ def repo_exists(full_name: str) -> bool:
         return False
 
 
+def scaffold_repo(full_name: str) -> None:
+    """
+    Pushes the minimal notes-repo skeleton (workflow + placeholder README)
+    into the freshly created empty GitHub repo.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+
+        # Wire up git in the temp dir
+        run(["git", "-C", tmpdir, "init", "-b", "main"], capture=True)
+        run(["git", "-C", tmpdir, "remote", "add", "origin",
+             f"https://github.com/{full_name}.git"], capture=True)
+
+        # Write skeleton files
+        wf_dir = tmp / ".github" / "workflows"
+        wf_dir.mkdir(parents=True)
+        (wf_dir / "sync.yml").write_text(_SYNC_YML)
+        (tmp / "README.md").write_text(_README)
+        (tmp / ".gitignore").write_text(_GITIGNORE)
+
+        # Commit and push
+        run(["git", "-C", tmpdir, "add", "-A"], capture=True)
+        run(["git", "-C", tmpdir, "commit", "-m",
+             "chore: initialize GitLeetNotes"], capture=True)
+        run(["git", "-C", tmpdir, "push", "-u", "origin", "main"],
+            capture=True)
+
+
 def create_repo(username: str) -> str:
     """
     Prompts for a repo name. If it already exists, asks the user whether to
-    continue (which will update secrets) or abort. If it doesn't exist, creates
-    it from the template and waits for GitHub to index the files.
+    continue (which will update secrets) or abort. If it doesn't exist,
+    creates an empty public repo and scaffolds it with minimal files.
     Returns the full repo identifier (owner/name).
     """
-    print_step(2, "Creating your GitLeetNotes repo")
+    print_step(2, "Creating your notes repo")
 
     name = input(f"  Repo name [{DEFAULT_REPO_NAME}]: ").strip() or DEFAULT_REPO_NAME
     full_name = f"{username}/{name}"
@@ -106,25 +171,21 @@ def create_repo(username: str) -> str:
         print_ok(f"Using existing repo: https://github.com/{full_name}")
         return full_name
 
-    print_info(f"Creating {full_name} from template {TEMPLATE_REPO} ...")
+    print_info(f"Creating {full_name} ...")
     try:
-        run([
-            "gh", "repo", "create", name,
-            "--template", TEMPLATE_REPO,
-            "--public",
-        ])
+        run(["gh", "repo", "create", name, "--public"], capture=True)
     except subprocess.CalledProcessError as e:
         print_error(f"Failed to create repo: {e.stderr or e}")
         sys.exit(1)
 
-    print_ok(f"Repo created: https://github.com/{full_name}")
+    print_info("Pushing initial files...")
+    try:
+        scaffold_repo(full_name)
+    except subprocess.CalledProcessError as e:
+        print_error(f"Failed to push initial files: {e.stderr or e}")
+        sys.exit(1)
 
-    # GitHub takes a moment to populate the repo from the template.
-    # Without this wait, `gh workflow run` fails because the workflow
-    # file hasn't been indexed yet.
-    print_info("Waiting for GitHub to initialize repo contents...")
-    time.sleep(6)
-
+    print_ok(f"Repo ready: https://github.com/{full_name}")
     return full_name
 
 
