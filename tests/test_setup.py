@@ -92,40 +92,54 @@ class TestScaffoldRepo:
 
 
 class TestCreateRepo:
+    @patch("setup.time")
     @patch("setup.scaffold_repo")
     @patch("setup.repo_exists", return_value=False)
     @patch("setup.run")
     @patch("builtins.input", return_value="")
-    def test_uses_default_name_on_empty_input(self, mock_input, mock_run, mock_exists, mock_scaffold):
-        result = s.create_repo("octocat")
-        assert result == f"octocat/{s.DEFAULT_REPO_NAME}"
+    def test_uses_default_name_on_empty_input(self, mock_input, mock_run, mock_exists, mock_scaffold, mock_time):
+        repo, is_new = s.create_repo("octocat")
+        assert repo == f"octocat/{s.DEFAULT_REPO_NAME}"
+        assert is_new is True
 
+    @patch("setup.time")
     @patch("setup.scaffold_repo")
     @patch("setup.repo_exists", return_value=False)
     @patch("setup.run")
     @patch("builtins.input", return_value="my-leet-notes")
-    def test_uses_provided_name(self, mock_input, mock_run, mock_exists, mock_scaffold):
-        result = s.create_repo("octocat")
-        assert result == "octocat/my-leet-notes"
+    def test_uses_provided_name(self, mock_input, mock_run, mock_exists, mock_scaffold, mock_time):
+        repo, _ = s.create_repo("octocat")
+        assert repo == "octocat/my-leet-notes"
 
+    @patch("setup.time")
     @patch("setup.scaffold_repo")
     @patch("setup.repo_exists", return_value=False)
     @patch("setup.run")
     @patch("builtins.input", return_value="")
-    def test_calls_gh_repo_create(self, mock_input, mock_run, mock_exists, mock_scaffold):
+    def test_calls_gh_repo_create(self, mock_input, mock_run, mock_exists, mock_scaffold, mock_time):
         s.create_repo("octocat")
         args = mock_run.call_args.args[0]
         assert args[:3] == ["gh", "repo", "create"]
         assert "--public" in args
         assert "--template" not in args
 
+    @patch("setup.time")
     @patch("setup.scaffold_repo")
     @patch("setup.repo_exists", return_value=False)
     @patch("setup.run")
     @patch("builtins.input", return_value="")
-    def test_calls_scaffold_after_create(self, mock_input, mock_run, mock_exists, mock_scaffold):
+    def test_calls_scaffold_after_create(self, mock_input, mock_run, mock_exists, mock_scaffold, mock_time):
         s.create_repo("octocat")
         mock_scaffold.assert_called_once_with(f"octocat/{s.DEFAULT_REPO_NAME}")
+
+    @patch("setup.time")
+    @patch("setup.scaffold_repo")
+    @patch("setup.repo_exists", return_value=False)
+    @patch("setup.run")
+    @patch("builtins.input", return_value="")
+    def test_new_repo_waits_for_indexing(self, mock_input, mock_run, mock_exists, mock_scaffold, mock_time):
+        s.create_repo("octocat")
+        mock_time.sleep.assert_called_once_with(8)
 
     @patch("setup.scaffold_repo")
     @patch("setup.repo_exists", return_value=False)
@@ -137,33 +151,37 @@ class TestCreateRepo:
             s.create_repo("octocat")
 
     @patch("setup.repo_exists", return_value=True)
-    @patch("builtins.input", side_effect=["", "1"])  # name, then keep
-    def test_existing_repo_choice1_keeps_it(self, mock_input, mock_exists):
-        result = s.create_repo("octocat")
-        assert result == f"octocat/{s.DEFAULT_REPO_NAME}"
+    @patch("builtins.input", side_effect=["", "1"])
+    def test_existing_repo_choice1_returns_is_new_false(self, mock_input, mock_exists):
+        repo, is_new = s.create_repo("octocat")
+        assert repo == f"octocat/{s.DEFAULT_REPO_NAME}"
+        assert is_new is False
 
     @patch("setup.repo_exists", return_value=True)
-    @patch("builtins.input", side_effect=["", ""])  # empty = keep (default)
+    @patch("builtins.input", side_effect=["", ""])
     def test_existing_repo_empty_choice_keeps_it(self, mock_input, mock_exists):
-        result = s.create_repo("octocat")
-        assert "octocat" in result
+        repo, is_new = s.create_repo("octocat")
+        assert "octocat" in repo
+        assert is_new is False
 
     @patch("setup.repo_exists", return_value=True)
-    @patch("builtins.input", side_effect=["", "3"])  # name, then abort
+    @patch("builtins.input", side_effect=["", "3"])
     def test_existing_repo_choice3_aborts(self, mock_input, mock_exists):
         with pytest.raises(SystemExit):
             s.create_repo("octocat")
 
+    @patch("setup.time")
     @patch("setup.scaffold_repo")
     @patch("setup.run")
     @patch("setup.repo_exists", return_value=True)
-    @patch("builtins.input", side_effect=["", "2"])  # name, then delete+recreate
-    def test_existing_repo_choice2_deletes_and_recreates(self, mock_input, mock_exists, mock_run, mock_scaffold):
-        s.create_repo("octocat")
+    @patch("builtins.input", side_effect=["", "2"])
+    def test_existing_repo_choice2_deletes_and_recreates(self, mock_input, mock_exists, mock_run, mock_scaffold, mock_time):
+        repo, is_new = s.create_repo("octocat")
         cmds = [c.args[0] for c in mock_run.call_args_list]
         assert any("delete" in cmd for cmd in cmds)
         assert any("create" in cmd for cmd in cmds)
         mock_scaffold.assert_called_once()
+        assert is_new is True
 
     @patch("setup.run")
     @patch("setup.repo_exists", return_value=True)
@@ -190,9 +208,19 @@ class TestGetGeminiKey:
         assert result == "AIzaSy_fake_key_12345"
 
     @patch("getpass.getpass", return_value="")
-    def test_exits_on_empty_key(self, mock_getpass):
+    def test_exits_on_empty_key_when_required(self, mock_getpass):
         with pytest.raises(SystemExit):
-            s.get_gemini_key()
+            s.get_gemini_key(optional=False)
+
+    @patch("getpass.getpass", return_value="")
+    def test_returns_none_when_optional_and_skipped(self, mock_getpass):
+        result = s.get_gemini_key(optional=True)
+        assert result is None
+
+    @patch("getpass.getpass", return_value="new-key")
+    def test_returns_new_key_when_optional_and_provided(self, mock_getpass):
+        result = s.get_gemini_key(optional=True)
+        assert result == "new-key"
 
 
 # ─── configure_repo ───────────────────────────────────────────────────────────
@@ -227,13 +255,22 @@ class TestRefreshCookies:
 
 class TestConfigureRepo:
     @patch("setup.run")
-    def test_sets_all_three_secrets(self, mock_run):
+    def test_sets_all_three_secrets_when_gemini_provided(self, mock_run):
         s.configure_repo("octocat/repo", "sess123", "csrf456", "gemini789")
         calls = mock_run.call_args_list
         secret_names = [c.args[0][3] for c in calls if "secret" in c.args[0]]
         assert "LEETCODE_SESSION" in secret_names
         assert "LEETCODE_CSRF" in secret_names
         assert "GEMINI_API_KEY" in secret_names
+
+    @patch("setup.run")
+    def test_skips_gemini_when_none(self, mock_run):
+        s.configure_repo("octocat/repo", "sess123", "csrf456", None)
+        calls = mock_run.call_args_list
+        secret_names = [c.args[0][3] for c in calls if "secret" in c.args[0]]
+        assert "LEETCODE_SESSION" in secret_names
+        assert "LEETCODE_CSRF" in secret_names
+        assert "GEMINI_API_KEY" not in secret_names
 
     @patch("setup.run")
     def test_triggers_workflow(self, mock_run):

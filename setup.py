@@ -148,12 +148,10 @@ def scaffold_repo(full_name: str) -> None:
             capture=True)
 
 
-def create_repo(username: str) -> str:
+def create_repo(username: str) -> tuple[str, bool]:
     """
-    Prompts for a repo name. If it already exists, asks the user whether to
-    continue (which will update secrets) or abort. If it doesn't exist,
-    creates an empty public repo and scaffolds it with minimal files.
-    Returns the full repo identifier (owner/name).
+    Prompts for a repo name and creates or reuses it.
+    Returns (full_name, is_new) where is_new=True means secrets must be set fresh.
     """
     print_step(2, "Creating your notes repo")
 
@@ -186,10 +184,10 @@ def create_repo(username: str) -> str:
                 else:
                     print_error(f"Could not delete repo: {err or e}")
                 sys.exit(1)
-            # Fall through to create a fresh one below
+            # Fall through to create fresh below
         else:
             print_ok(f"Using existing repo: https://github.com/{full_name}")
-            return full_name
+            return full_name, False  # existing — Gemini key may already be set
 
     print_info(f"Creating {full_name} ...")
     try:
@@ -206,7 +204,12 @@ def create_repo(username: str) -> str:
         sys.exit(1)
 
     print_ok(f"Repo ready: https://github.com/{full_name}")
-    return full_name
+
+    # GitHub needs a moment to index the workflow file before `gh workflow run` works.
+    print_info("Waiting for GitHub to index workflow...")
+    time.sleep(8)
+
+    return full_name, True  # new repo — all secrets required
 
 
 # ─── Step 3: Extract LeetCode cookies via Playwright ─────────────────────────
@@ -277,27 +280,38 @@ def get_leetcode_cookies() -> tuple[str, str]:
 
 # ─── Step 4: Prompt for Gemini API key ────────────────────────────────────────
 
-def get_gemini_key() -> str:
+def get_gemini_key(optional: bool = False) -> str | None:
+    """
+    Prompts for a Gemini API key.
+    If optional=True (existing repo), pressing Enter skips the update.
+    Returns the key string, or None if skipped.
+    """
     print_step(4, "Gemini API key")
     print_info(f"Get a free key at: {GEMINI_KEY_URL}")
-    key = getpass.getpass("  Paste your Gemini API key (hidden): ").strip()
+    if optional:
+        print_info("Press Enter to keep your existing key, or paste a new one to update it.")
+    key = getpass.getpass("  Gemini API key (hidden): ").strip()
     if not key:
+        if optional:
+            print_ok("Keeping existing Gemini API key.")
+            return None
         print_error("Gemini API key cannot be empty.")
         sys.exit(1)
-    print_ok("Key received")
+    print_ok("Key received.")
     return key
 
 
 # ─── Step 5: Set secrets + trigger workflow ───────────────────────────────────
 
-def configure_repo(repo: str, session: str, csrf: str, gemini_key: str) -> None:
+def configure_repo(repo: str, session: str, csrf: str, gemini_key: str | None) -> None:
     print_step(5, "Configuring repo secrets and triggering first run")
 
     secrets = {
         "LEETCODE_SESSION": session,
         "LEETCODE_CSRF": csrf,
-        "GEMINI_API_KEY": gemini_key,
     }
+    if gemini_key is not None:
+        secrets["GEMINI_API_KEY"] = gemini_key
 
     for name, value in secrets.items():
         run(["gh", "secret", "set", name, "--body", value, "--repo", repo])
@@ -365,9 +379,9 @@ def main() -> None:
     print("─" * 40)
 
     username = check_gh_auth()
-    repo = create_repo(username)
+    repo, is_new = create_repo(username)
     session, csrf = get_leetcode_cookies()
-    gemini_key = get_gemini_key()
+    gemini_key = get_gemini_key(optional=not is_new)
     configure_repo(repo, session, csrf, gemini_key)
 
     print(f"\n\033[1m\033[32mAll done!\033[0m")
