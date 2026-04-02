@@ -64,13 +64,13 @@ class TestScaffoldRepo:
 
     @patch("setup.tempfile.TemporaryDirectory")
     @patch("setup.run")
-    def test_workflow_calls_reusable(self, mock_run, mock_tmpdir, tmp_path):
+    def test_workflow_references_runner_repo(self, mock_run, mock_tmpdir, tmp_path):
         mock_tmpdir.return_value.__enter__ = lambda s: str(tmp_path)
         mock_tmpdir.return_value.__exit__ = MagicMock(return_value=False)
         s.scaffold_repo("octocat/repo")
         content = (tmp_path / ".github" / "workflows" / "sync.yml").read_text()
-        assert "sync-runner.yml" in content
         assert s.RUNNER_REPO in content
+        assert "python _runner/src/main.py" in content
 
     @patch("setup.tempfile.TemporaryDirectory")
     @patch("setup.run")

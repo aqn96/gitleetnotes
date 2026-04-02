@@ -6,7 +6,11 @@ Returns structured data: pattern, time complexity, space complexity, explanation
 import json
 import os
 import re
+import time
 import requests
+
+# Gemini free tier: 15 requests/minute. One call per ~4s keeps us safely under.
+_RATE_LIMIT_DELAY = 4  # seconds between calls
 
 GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
@@ -49,6 +53,7 @@ def analyze_solution(
     )
 
     try:
+        time.sleep(_RATE_LIMIT_DELAY)
         resp = requests.post(
             f"{GEMINI_URL}?key={api_key}",
             json={"contents": [{"parts": [{"text": prompt}]}]},
