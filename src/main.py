@@ -36,13 +36,13 @@ def run() -> int:
     """Returns the number of new solutions processed."""
     lc_session = os.environ.get("LEETCODE_SESSION", "").strip()
     lc_csrf = os.environ.get("LEETCODE_CSRF", "").strip()
-    gemini_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    github_token = os.environ.get("GITHUB_TOKEN", "").strip()
 
     if not lc_session or not lc_csrf:
         print("ERROR: LEETCODE_SESSION and LEETCODE_CSRF must be set.")
         sys.exit(1)
-    if not gemini_key:
-        print("ERROR: GEMINI_API_KEY must be set.")
+    if not github_token:
+        print("ERROR: GITHUB_TOKEN must be set.")
         sys.exit(1)
 
     print("Fetching LeetCode username...")
@@ -82,7 +82,7 @@ def run() -> int:
         tags = [t["name"] for t in details.get("topicTags", [])]
         solved_on = timestamp_to_date(sub["timestamp"])
 
-        # Build a prefill dict from free sources so Gemini failure still
+        # Build a prefill dict from free sources so model failure still
         # produces a useful note (pattern from tags, complexity from editorial).
         prefill: dict = {}
         inferred = infer_pattern_from_tags(tags)
@@ -92,13 +92,13 @@ def run() -> int:
         if editorial:
             prefill.update(editorial)
 
-        print(f"    analyzing with Gemini...")
+        print(f"    analyzing with GitHub Models...")
         analysis = analyze_solution(
             title=sub["title"],
             difficulty=difficulty,
             lang=sub["lang"],
             code=code,
-            api_key=gemini_key,
+            api_key=github_token,
             prefill=prefill or None,
         )
 
@@ -140,7 +140,7 @@ def run() -> int:
             print(f"    saved: {note_path}")
 
     # Re-analyze any notes that previously fell back to "Unknown" (e.g. rate limit hit)
-    retry_count = _retry_unknown(progress, lc_session, lc_csrf, gemini_key)
+    retry_count = _retry_unknown(progress, lc_session, lc_csrf, github_token)
     if retry_count:
         print(f"  Re-analyzed {retry_count} previously-unknown note(s).")
 
@@ -152,9 +152,9 @@ def run() -> int:
     return new_count
 
 
-def _retry_unknown(progress: dict, session: str, csrf: str, gemini_key: str) -> int:
+def _retry_unknown(progress: dict, session: str, csrf: str, github_token: str) -> int:
     """
-    Finds solved entries where pattern=='Unknown' (Gemini failed on a previous run)
+    Finds solved entries where pattern=='Unknown' (model failed on a previous run)
     and re-runs analysis. Updates the note file and progress entry in place.
     Returns the number of entries successfully re-analyzed.
     """
@@ -200,7 +200,7 @@ def _retry_unknown(progress: dict, session: str, csrf: str, gemini_key: str) -> 
             difficulty=difficulty,
             lang=lang,
             code=code,
-            api_key=gemini_key,
+            api_key=github_token,
             prefill=prefill or None,
         )
         if analysis["pattern"] == "Unknown":

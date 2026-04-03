@@ -1,15 +1,18 @@
 """
-Uses Gemini 2.0 Flash (free tier) to analyze a LeetCode solution.
+Uses GitHub Models (gpt-4o-mini, free for all GitHub users) to analyze a LeetCode solution.
 Returns structured data: pattern, time complexity, space complexity, explanation.
 
+Authentication uses the GITHUB_TOKEN automatically provided by GitHub Actions —
+no separate API key required.
+
 Tag-based pattern inference and editorial complexity are used as free fallbacks
-when Gemini is unavailable (rate-limited, quota exhausted, etc.).
+when the model call fails (rate-limited, quota exhausted, etc.).
 """
 
 import json
 import re
 import time
-import requests
+from openai import OpenAI
 
 # Maps LeetCode topic tag names (lowercase) to analysis pattern labels.
 _TAG_TO_PATTERN = {
@@ -54,13 +57,13 @@ def infer_pattern_from_tags(tags: list[str]) -> str | None:
             return pattern
     return None
 
-# Gemini free tier: 15 requests/minute. One call per ~4s keeps us safely under.
-_RATE_LIMIT_DELAY = 4  # seconds between calls
 
-GEMINI_URL = (
-    "https://generativelanguage.googleapis.com/v1beta/models/"
-    "gemini-2.0-flash:generateContent"
-)
+# GitHub Models free tier (gpt-4o-mini): 20 requests/minute.
+# One call per ~3s keeps us safely under.
+_RATE_LIMIT_DELAY = 3  # seconds between calls
+
+GITHUB_MODELS_BASE_URL = "https://models.inference.ai.azure.com"
+GITHUB_MODELS_MODEL = "gpt-4o-mini"
 
 PROMPT_TEMPLATE = """You are a senior software engineer reviewing a LeetCode solution.
 
@@ -91,9 +94,10 @@ def analyze_solution(
     prefill: dict | None = None,
 ) -> dict:
     """
-    Calls Gemini and returns a structured analysis dict.
+    Calls GitHub Models (gpt-4o-mini) and returns a structured analysis dict.
+    api_key should be the GITHUB_TOKEN from the Actions environment.
     If prefill is provided (e.g. pattern from tags, complexity from editorial),
-    those values override fallback placeholders when Gemini fails.
+    those values override fallback placeholders when the model call fails.
     """
     prompt = PROMPT_TEMPLATE.format(
         title=title, difficulty=difficulty, lang=lang, code=code
@@ -101,14 +105,16 @@ def analyze_solution(
 
     try:
         time.sleep(_RATE_LIMIT_DELAY)
-        resp = requests.post(
-            f"{GEMINI_URL}?key={api_key}",
-            json={"contents": [{"parts": [{"text": prompt}]}]},
-            timeout=30,
+        client = OpenAI(
+            base_url=GITHUB_MODELS_BASE_URL,
+            api_key=api_key,
         )
-        resp.raise_for_status()
-        raw = resp.json()
-        text = raw["candidates"][0]["content"]["parts"][0]["text"].strip()
+        response = client.chat.completions.create(
+            model=GITHUB_MODELS_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+        )
+        text = response.choices[0].message.content.strip()
 
         # Strip accidental markdown fences
         text = re.sub(r"^```[a-z]*\n?", "", text)
@@ -116,9 +122,9 @@ def analyze_solution(
 
         return json.loads(text)
     except json.JSONDecodeError as e:
-        print(f"WARN: Gemini returned non-JSON for '{title}': {e}")
+        print(f"WARN: Model returned non-JSON for '{title}': {e}")
     except Exception as e:
-        print(f"WARN: Gemini analysis failed for '{title}': {e}")
+        print(f"WARN: GitHub Models analysis failed for '{title}': {e}")
 
     fallback = _fallback()
     if prefill:

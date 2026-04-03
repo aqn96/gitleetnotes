@@ -14,9 +14,9 @@ The standard workflow is: solve a problem, move on. Maybe the code ends up in a 
 
 **GitLeetNotes turns your repo into a study guide that builds itself.**
 
-Every time you solve a problem, a GitHub Action fetches your solution, sends it to Gemini AI (free tier) for analysis, and commits a clean study note — organized by pattern, with time/space complexity and the key insight written out. Your README becomes a live progress dashboard showing coverage by pattern and difficulty.
+Every time you solve a problem, a GitHub Action fetches your solution, sends it to **GitHub Models (gpt-4o-mini)** for analysis, and commits a clean study note — organized by pattern, with time/space complexity and the key insight written out. Your README becomes a live progress dashboard showing coverage by pattern and difficulty.
 
-No browser extension. No manual steps. It just runs in the background and accumulates knowledge.
+No browser extension. No manual steps. No API keys to manage. It just runs in the background and accumulates knowledge.
 
 ---
 
@@ -68,11 +68,11 @@ Before an interview you don't re-solve 50 problems — you open your repo and se
 
 1. A GitHub Action runs **daily at 9 AM UTC** (or on demand)
 2. Fetches your recent accepted submissions from LeetCode
-3. Calls **Gemini 2.0 Flash** (free tier) to identify the algorithmic pattern, complexity, and a key insight
+3. Calls **GitHub Models (gpt-4o-mini)** — free for all GitHub users, authenticated automatically via `GITHUB_TOKEN` — to identify the algorithmic pattern, complexity, and a key insight
 4. Commits a markdown note to `solutions/<pattern>/` and regenerates your README dashboard
 5. Everything runs inside your own GitHub repo — no external servers, no accounts to manage
 
-**Total cost: $0.** Gemini free tier handles ~1,500 requests/day, well above any daily solving pace.
+**Total cost: $0.** GitHub Models is free for all GitHub users with no separate API key required.
 
 ---
 
@@ -93,9 +93,8 @@ The script walks you through:
 
 1. **Creates your repo** — makes a new public repo (e.g. `your-username/leetcode-notes`) on your GitHub account from this template, via GitHub CLI
 2. **Extracts your LeetCode cookies** — opens a browser window, you log in once, the script pulls your session cookies automatically. No DevTools, no copy-pasting.
-3. **Prompts for your Gemini API key** — one paste ([get a free key here](https://aistudio.google.com/app/apikey), no billing required)
-4. **Sets all secrets** on your new repo via GitHub CLI
-5. **Triggers your first sync** — your repo gets its first notes within a minute
+3. **Sets all secrets** on your new repo via GitHub CLI
+4. **Triggers your first sync** — your repo gets its first notes within a minute
 
 After that, your personal repo runs on its own every day. You can delete this local clone — everything lives in your new repo from here on.
 
@@ -116,16 +115,16 @@ Opens a browser, re-extracts cookies, updates your repo secrets. Done in under a
 
 1. Click **"Use this template"** → **"Create a new repository"** on GitHub. Make it **public**.
 2. Log in to [leetcode.com](https://leetcode.com), open DevTools → Application → Cookies, and copy `LEETCODE_SESSION` and `csrftoken`.
-3. Get a free Gemini API key at [Google AI Studio](https://aistudio.google.com/app/apikey).
-4. Go to your repo → **Settings → Secrets and variables → Actions** and add:
+3. Go to your repo → **Settings → Secrets and variables → Actions** and add:
 
 | Secret name | Value |
 |---|---|
 | `LEETCODE_SESSION` | Your LeetCode session cookie |
 | `LEETCODE_CSRF` | Your LeetCode csrftoken cookie |
-| `GEMINI_API_KEY` | Your Gemini API key |
 
-5. Go to **Actions → Sync LeetCode Solutions → Run workflow**.
+4. Go to **Actions → Sync LeetCode Solutions → Run workflow**.
+
+No API key needed — `GITHUB_TOKEN` is provided automatically by GitHub Actions.
 
 </details>
 
@@ -147,7 +146,7 @@ your-repo/
 ├── src/
 │   ├── main.py                   # Action entry point
 │   ├── fetcher.py                # LeetCode GraphQL client
-│   ├── analyzer.py               # Gemini analysis
+│   ├── analyzer.py               # GitHub Models analysis
 │   ├── note_generator.py         # Markdown note builder
 │   └── progress_tracker.py       # Progress state + README generator
 ├── tests/                        # pytest suite (55 tests)
@@ -170,6 +169,7 @@ pip install -r requirements-dev.txt
 # Configure secrets
 cp .env.example .env
 # Edit .env with your actual values
+# GITHUB_TOKEN can be a Personal Access Token with no special scopes
 
 # Run sync
 export $(cat .env | xargs)
@@ -187,7 +187,7 @@ pytest tests/ -v --cov=src --cov-report=term-missing
 ## Limitations
 
 - **LeetCode's API is unofficial.** There is no public LeetCode API — this tool uses the same GraphQL endpoint their website uses. It has been stable for years but could break if LeetCode changes their frontend. Session cookies also expire every few weeks.
-- **Gemini free tier is per-project.** The 1,500 requests/day limit is shared across all your Gemini usage. At one problem per day, you'll use ~30 requests/month — well within limits.
+- **GitHub Models free tier rate limits.** gpt-4o-mini allows 200 requests/day. At one problem per day, you'll use ~30 requests/month — well within limits. The sync throttles calls automatically.
 - **Fetches the 20 most recent accepted submissions per run.** If you solve more than 20 problems in one day, trigger the Action manually to catch up.
 
 ---

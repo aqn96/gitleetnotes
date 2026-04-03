@@ -17,7 +17,6 @@ Requirements: gh CLI (authenticated), Python 3.10+, playwright
 import argparse
 import subprocess
 import sys
-import getpass
 import tempfile
 import time
 from pathlib import Path
@@ -25,8 +24,6 @@ from pathlib import Path
 RUNNER_REPO = "aqn96/gitleetnotes"
 DEFAULT_REPO_NAME = "leetcode-notes"
 LEETCODE_LOGIN_URL = "https://leetcode.com/accounts/login/"
-GEMINI_KEY_URL = "https://aistudio.google.com/app/apikey"
-
 # Minimal workflow written into the user's notes repo.
 # Checks out gitleetnotes at runtime to run the sync scripts —
 # users automatically get bug fixes without touching their repo.
@@ -40,6 +37,7 @@ on:
 
 permissions:
   contents: write
+  models: read
 
 jobs:
   sync:
@@ -67,7 +65,7 @@ jobs:
         env:
           LEETCODE_SESSION: ${{{{ secrets.LEETCODE_SESSION }}}}
           LEETCODE_CSRF: ${{{{ secrets.LEETCODE_CSRF }}}}
-          GEMINI_API_KEY: ${{{{ secrets.GEMINI_API_KEY }}}}
+          GITHUB_TOKEN: ${{{{ secrets.GITHUB_TOKEN }}}}
         run: python _runner/src/main.py
 
       - name: Commit and push if changes exist
@@ -108,7 +106,7 @@ def run(cmd: list[str], capture: bool = False) -> subprocess.CompletedProcess:
 
 
 def print_step(n: int, msg: str) -> None:
-    print(f"\n\033[1m[{n}/5] {msg}\033[0m")
+    print(f"\n\033[1m[{n}/4] {msg}\033[0m")
 
 
 def print_ok(msg: str) -> None:
@@ -223,7 +221,7 @@ def create_repo(username: str) -> tuple[str, bool]:
             # Fall through to create fresh below
         else:
             print_ok(f"Using existing repo: https://github.com/{full_name}")
-            return full_name, False  # existing — Gemini key may already be set
+            return full_name, False
 
     print_info(f"Creating {full_name} ...")
     try:
@@ -314,40 +312,15 @@ def get_leetcode_cookies() -> tuple[str, str]:
     return session, csrf
 
 
-# ─── Step 4: Prompt for Gemini API key ────────────────────────────────────────
+# ─── Step 4: Set secrets + trigger workflow ───────────────────────────────────
 
-def get_gemini_key(optional: bool = False) -> str | None:
-    """
-    Prompts for a Gemini API key.
-    If optional=True (existing repo), pressing Enter skips the update.
-    Returns the key string, or None if skipped.
-    """
-    print_step(4, "Gemini API key")
-    print_info(f"Get a free key at: {GEMINI_KEY_URL}")
-    if optional:
-        print_info("Press Enter to keep your existing key, or paste a new one to update it.")
-    key = getpass.getpass("  Gemini API key (hidden): ").strip()
-    if not key:
-        if optional:
-            print_ok("Keeping existing Gemini API key.")
-            return None
-        print_error("Gemini API key cannot be empty.")
-        sys.exit(1)
-    print_ok("Key received.")
-    return key
-
-
-# ─── Step 5: Set secrets + trigger workflow ───────────────────────────────────
-
-def configure_repo(repo: str, session: str, csrf: str, gemini_key: str | None) -> None:
-    print_step(5, "Configuring repo secrets and triggering first run")
+def configure_repo(repo: str, session: str, csrf: str) -> None:
+    print_step(4, "Configuring repo secrets and triggering first run")
 
     secrets = {
         "LEETCODE_SESSION": session,
         "LEETCODE_CSRF": csrf,
     }
-    if gemini_key is not None:
-        secrets["GEMINI_API_KEY"] = gemini_key
 
     for name, value in secrets.items():
         run(["gh", "secret", "set", name, "--body", value, "--repo", repo])
@@ -417,8 +390,7 @@ def main() -> None:
     username = check_gh_auth()
     repo, is_new = create_repo(username)
     session, csrf = get_leetcode_cookies()
-    gemini_key = get_gemini_key(optional=not is_new)
-    configure_repo(repo, session, csrf, gemini_key)
+    configure_repo(repo, session, csrf)
 
     print(f"\n\033[1m\033[32mAll done!\033[0m")
     print(f"  Your repo:  https://github.com/{repo}")

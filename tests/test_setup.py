@@ -199,30 +199,6 @@ class TestCreateRepo:
         mock_scaffold.assert_not_called()
 
 
-# ─── get_gemini_key ───────────────────────────────────────────────────────────
-
-class TestGetGeminiKey:
-    @patch("getpass.getpass", return_value="AIzaSy_fake_key_12345")
-    def test_returns_key_on_valid_input(self, mock_getpass):
-        result = s.get_gemini_key()
-        assert result == "AIzaSy_fake_key_12345"
-
-    @patch("getpass.getpass", return_value="")
-    def test_exits_on_empty_key_when_required(self, mock_getpass):
-        with pytest.raises(SystemExit):
-            s.get_gemini_key(optional=False)
-
-    @patch("getpass.getpass", return_value="")
-    def test_returns_none_when_optional_and_skipped(self, mock_getpass):
-        result = s.get_gemini_key(optional=True)
-        assert result is None
-
-    @patch("getpass.getpass", return_value="new-key")
-    def test_returns_new_key_when_optional_and_provided(self, mock_getpass):
-        result = s.get_gemini_key(optional=True)
-        assert result == "new-key"
-
-
 # ─── configure_repo ───────────────────────────────────────────────────────────
 
 class TestRefreshCookies:
@@ -237,14 +213,6 @@ class TestRefreshCookies:
 
     @patch("setup.get_leetcode_cookies", return_value=("new_session", "new_csrf"))
     @patch("setup.run")
-    def test_does_not_touch_gemini_secret(self, mock_run, mock_cookies):
-        s.refresh_cookies("octocat/repo")
-        calls = mock_run.call_args_list
-        secret_names = [c.args[0][3] for c in calls if "set" in c.args[0]]
-        assert "GEMINI_API_KEY" not in secret_names
-
-    @patch("setup.get_leetcode_cookies", return_value=("new_session", "new_csrf"))
-    @patch("setup.run")
     def test_passes_new_cookie_values(self, mock_run, mock_cookies):
         s.refresh_cookies("octocat/repo")
         calls = mock_run.call_args_list
@@ -255,32 +223,22 @@ class TestRefreshCookies:
 
 class TestConfigureRepo:
     @patch("setup.run")
-    def test_sets_all_three_secrets_when_gemini_provided(self, mock_run):
-        s.configure_repo("octocat/repo", "sess123", "csrf456", "gemini789")
+    def test_sets_both_secrets(self, mock_run):
+        s.configure_repo("octocat/repo", "sess123", "csrf456")
         calls = mock_run.call_args_list
         secret_names = [c.args[0][3] for c in calls if "secret" in c.args[0]]
         assert "LEETCODE_SESSION" in secret_names
         assert "LEETCODE_CSRF" in secret_names
-        assert "GEMINI_API_KEY" in secret_names
-
-    @patch("setup.run")
-    def test_skips_gemini_when_none(self, mock_run):
-        s.configure_repo("octocat/repo", "sess123", "csrf456", None)
-        calls = mock_run.call_args_list
-        secret_names = [c.args[0][3] for c in calls if "secret" in c.args[0]]
-        assert "LEETCODE_SESSION" in secret_names
-        assert "LEETCODE_CSRF" in secret_names
-        assert "GEMINI_API_KEY" not in secret_names
 
     @patch("setup.run")
     def test_triggers_workflow(self, mock_run):
-        s.configure_repo("octocat/repo", "sess", "csrf", "key")
+        s.configure_repo("octocat/repo", "sess", "csrf")
         calls = [c.args[0] for c in mock_run.call_args_list]
         assert any("workflow" in cmd and "run" in cmd for cmd in calls)
 
     @patch("setup.run")
     def test_passes_correct_secret_values(self, mock_run):
-        s.configure_repo("octocat/repo", "my_session", "my_csrf", "my_gemini")
+        s.configure_repo("octocat/repo", "my_session", "my_csrf")
         calls = mock_run.call_args_list
         bodies = {
             c.args[0][3]: c.args[0][5]
@@ -289,17 +247,16 @@ class TestConfigureRepo:
         }
         assert bodies.get("LEETCODE_SESSION") == "my_session"
         assert bodies.get("LEETCODE_CSRF") == "my_csrf"
-        assert bodies.get("GEMINI_API_KEY") == "my_gemini"
 
     @patch("setup.time")
     @patch("setup.run")
     def test_handles_workflow_trigger_failure_gracefully(self, mock_run, mock_time):
-        # 3 secret-set calls succeed, all 3 workflow-run retries fail
+        # 2 secret-set calls succeed, all 3 workflow-run retries fail
         mock_run.side_effect = [
-            None, None, None,  # secrets
+            None, None,  # secrets
             subprocess.CalledProcessError(1, "gh", stderr=""),  # retry 1
             subprocess.CalledProcessError(1, "gh", stderr=""),  # retry 2
             subprocess.CalledProcessError(1, "gh", stderr=""),  # retry 3
         ]
         # Should not raise — workflow trigger failure is non-fatal
-        s.configure_repo("octocat/repo", "s", "c", "g")
+        s.configure_repo("octocat/repo", "s", "c")
