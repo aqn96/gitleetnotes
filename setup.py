@@ -323,23 +323,29 @@ def configure_repo(repo: str, session: str, csrf: str) -> None:
         print_ok(f"Secret set: {name}")
 
     # Poll until GitHub has indexed the workflow file, then trigger it.
-    print_info("Waiting for GitHub to index workflow (up to 60 s)...")
-    for attempt in range(1, 13):
+    # New repos can take 1–3 minutes to index — poll up to 5 minutes.
+    print_info("Waiting for GitHub to index workflow (up to 5 min)...")
+    indexed = False
+    for attempt in range(1, 31):
         try:
             run(["gh", "workflow", "view", "sync.yml", "--repo", repo], capture=True)
+            indexed = True
             break  # workflow is visible
         except subprocess.CalledProcessError:
-            if attempt < 12:
-                print_info(f"  Not indexed yet, checking again in 5 s... ({attempt}/12)")
-                time.sleep(5)
+            print_info(f"  Not indexed yet, checking again in 10 s... ({attempt}/30)")
+            time.sleep(10)
 
-    print_info("Triggering first workflow run...")
-    try:
-        run(["gh", "workflow", "run", "sync.yml", "--repo", repo])
-        print_ok("Workflow triggered — check progress at:")
-        print_info(f"  https://github.com/{repo}/actions")
-    except subprocess.CalledProcessError:
-        print_info("Could not trigger automatically — trigger it manually:")
+    if indexed:
+        print_info("Triggering first workflow run...")
+        try:
+            run(["gh", "workflow", "run", "sync.yml", "--repo", repo])
+            print_ok("Workflow triggered — check progress at:")
+            print_info(f"  https://github.com/{repo}/actions")
+        except subprocess.CalledProcessError:
+            print_info("Could not trigger automatically — trigger it manually:")
+            print_info(f"  https://github.com/{repo}/actions")
+    else:
+        print_info("Workflow not yet indexed after 5 min — trigger it manually:")
         print_info(f"  https://github.com/{repo}/actions")
 
 
