@@ -232,14 +232,7 @@ def create_repo(username: str) -> tuple[str, bool]:
         print_error(f"Failed to create repo: {e.stderr or e}")
         sys.exit(1)
 
-    print_info("Pushing initial files...")
-    try:
-        scaffold_repo(full_name)
-    except subprocess.CalledProcessError as e:
-        print_error(f"Failed to push initial files: {e.stderr or e}")
-        sys.exit(1)
-
-    print_ok(f"Repo ready: https://github.com/{full_name}")
+    print_ok(f"Repo created: https://github.com/{full_name}")
 
     return full_name, True  # new repo — all secrets required
 
@@ -324,8 +317,7 @@ def configure_repo(repo: str, session: str, csrf: str) -> None:
         run(["gh", "secret", "set", name, "--body", value, "--repo", repo])
         print_ok(f"Secret set: {name}")
 
-    print_ok("First sync will start automatically — the workflow triggers on push.")
-    print_info(f"  https://github.com/{repo}/actions")
+    pass
 
 
 def refresh_cookies(repo: str) -> None:
@@ -371,6 +363,14 @@ def main() -> None:
     repo, is_new = create_repo(username)
     session, csrf = get_leetcode_cookies()
     configure_repo(repo, session, csrf)
+
+    if is_new:
+        print_info("Pushing initial files — this will trigger the first sync automatically...")
+        try:
+            scaffold_repo(repo)
+        except subprocess.CalledProcessError as e:
+            print_error(f"Failed to push initial files: {e.stderr or e}")
+            sys.exit(1)
 
     print(f"\n\033[1m\033[32mAll done!\033[0m")
     print(f"  Your repo:  https://github.com/{repo}")

@@ -92,60 +92,44 @@ class TestScaffoldRepo:
 
 
 class TestCreateRepo:
-    @patch("setup.time")
-    @patch("setup.scaffold_repo")
     @patch("setup.repo_exists", return_value=False)
     @patch("setup.run")
     @patch("builtins.input", return_value="")
-    def test_uses_default_name_on_empty_input(self, mock_input, mock_run, mock_exists, mock_scaffold, mock_time):
+    def test_uses_default_name_on_empty_input(self, mock_input, mock_run, mock_exists):
         repo, is_new = s.create_repo("octocat")
         assert repo == f"octocat/{s.DEFAULT_REPO_NAME}"
         assert is_new is True
 
-    @patch("setup.time")
-    @patch("setup.scaffold_repo")
     @patch("setup.repo_exists", return_value=False)
     @patch("setup.run")
     @patch("builtins.input", return_value="my-leet-notes")
-    def test_uses_provided_name(self, mock_input, mock_run, mock_exists, mock_scaffold, mock_time):
+    def test_uses_provided_name(self, mock_input, mock_run, mock_exists):
         repo, _ = s.create_repo("octocat")
         assert repo == "octocat/my-leet-notes"
 
-    @patch("setup.time")
-    @patch("setup.scaffold_repo")
     @patch("setup.repo_exists", return_value=False)
     @patch("setup.run")
     @patch("builtins.input", return_value="")
-    def test_calls_gh_repo_create(self, mock_input, mock_run, mock_exists, mock_scaffold, mock_time):
+    def test_calls_gh_repo_create(self, mock_input, mock_run, mock_exists):
         s.create_repo("octocat")
         args = mock_run.call_args.args[0]
         assert args[:3] == ["gh", "repo", "create"]
         assert "--public" in args
         assert "--template" not in args
 
-    @patch("setup.time")
-    @patch("setup.scaffold_repo")
     @patch("setup.repo_exists", return_value=False)
     @patch("setup.run")
     @patch("builtins.input", return_value="")
-    def test_calls_scaffold_after_create(self, mock_input, mock_run, mock_exists, mock_scaffold, mock_time):
-        s.create_repo("octocat")
-        mock_scaffold.assert_called_once_with(f"octocat/{s.DEFAULT_REPO_NAME}")
+    def test_does_not_scaffold_on_create(self, mock_input, mock_run, mock_exists):
+        # scaffold_repo is now called from main() after secrets are set, not here
+        with patch("setup.scaffold_repo") as mock_scaffold:
+            s.create_repo("octocat")
+            mock_scaffold.assert_not_called()
 
-    @patch("setup.time")
-    @patch("setup.scaffold_repo")
     @patch("setup.repo_exists", return_value=False)
     @patch("setup.run")
     @patch("builtins.input", return_value="")
-    def test_new_repo_waits_for_indexing(self, mock_input, mock_run, mock_exists, mock_scaffold, mock_time):
-        s.create_repo("octocat")
-        mock_time.sleep.assert_called_once_with(8)
-
-    @patch("setup.scaffold_repo")
-    @patch("setup.repo_exists", return_value=False)
-    @patch("setup.run")
-    @patch("builtins.input", return_value="")
-    def test_exits_on_create_error(self, mock_input, mock_run, mock_exists, mock_scaffold):
+    def test_exits_on_create_error(self, mock_input, mock_run, mock_exists):
         mock_run.side_effect = subprocess.CalledProcessError(1, "gh", stderr="error")
         with pytest.raises(SystemExit):
             s.create_repo("octocat")
@@ -170,17 +154,14 @@ class TestCreateRepo:
         with pytest.raises(SystemExit):
             s.create_repo("octocat")
 
-    @patch("setup.time")
-    @patch("setup.scaffold_repo")
     @patch("setup.run")
     @patch("setup.repo_exists", return_value=True)
     @patch("builtins.input", side_effect=["", "2"])
-    def test_existing_repo_choice2_deletes_and_recreates(self, mock_input, mock_exists, mock_run, mock_scaffold, mock_time):
+    def test_existing_repo_choice2_deletes_and_recreates(self, mock_input, mock_exists, mock_run):
         repo, is_new = s.create_repo("octocat")
         cmds = [c.args[0] for c in mock_run.call_args_list]
         assert any("delete" in cmd for cmd in cmds)
         assert any("create" in cmd for cmd in cmds)
-        mock_scaffold.assert_called_once()
         assert is_new is True
 
     @patch("setup.run")
@@ -191,12 +172,11 @@ class TestCreateRepo:
         with pytest.raises(SystemExit):
             s.create_repo("octocat")
 
-    @patch("setup.scaffold_repo")
     @patch("setup.repo_exists", return_value=True)
     @patch("builtins.input", side_effect=["", "1"])
-    def test_existing_repo_keep_does_not_scaffold(self, mock_input, mock_exists, mock_scaffold):
-        s.create_repo("octocat")
-        mock_scaffold.assert_not_called()
+    def test_existing_repo_keep_returns_is_new_false(self, mock_input, mock_exists):
+        _, is_new = s.create_repo("octocat")
+        assert is_new is False
 
 
 # ─── configure_repo ───────────────────────────────────────────────────────────
@@ -231,12 +211,6 @@ class TestConfigureRepo:
         assert "LEETCODE_CSRF" in secret_names
 
     @patch("setup.run")
-    def test_triggers_workflow(self, mock_run):
-        s.configure_repo("octocat/repo", "sess", "csrf")
-        calls = [c.args[0] for c in mock_run.call_args_list]
-        assert any("workflow" in cmd and "run" in cmd for cmd in calls)
-
-    @patch("setup.run")
     def test_passes_correct_secret_values(self, mock_run):
         s.configure_repo("octocat/repo", "my_session", "my_csrf")
         calls = mock_run.call_args_list
@@ -248,15 +222,8 @@ class TestConfigureRepo:
         assert bodies.get("LEETCODE_SESSION") == "my_session"
         assert bodies.get("LEETCODE_CSRF") == "my_csrf"
 
-    @patch("setup.time")
     @patch("setup.run")
-    def test_handles_workflow_trigger_failure_gracefully(self, mock_run, mock_time):
-        # 2 secret-set calls succeed, all 3 workflow-run retries fail
-        mock_run.side_effect = [
-            None, None,  # secrets
-            subprocess.CalledProcessError(1, "gh", stderr=""),  # retry 1
-            subprocess.CalledProcessError(1, "gh", stderr=""),  # retry 2
-            subprocess.CalledProcessError(1, "gh", stderr=""),  # retry 3
-        ]
-        # Should not raise — workflow trigger failure is non-fatal
-        s.configure_repo("octocat/repo", "s", "c")
+    def test_handles_secret_failure_gracefully(self, mock_run):
+        mock_run.side_effect = subprocess.CalledProcessError(1, "gh", stderr="")
+        with pytest.raises(subprocess.CalledProcessError):
+            s.configure_repo("octocat/repo", "s", "c")
