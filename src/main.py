@@ -112,6 +112,7 @@ def run() -> int:
             code=code,
             analysis=analysis,
             solved_on=solved_on,
+            problem_description=details.get("content", ""),
         )
 
         note_path = save_note(
@@ -218,6 +219,7 @@ def _retry_unknown(progress: dict, session: str, csrf: str, github_token: str) -
             code=code,
             analysis=analysis,
             solved_on=entry["solved_on"],
+            problem_description=details.get("content", ""),
         )
         note_path = save_note(
             solutions_dir=SOLUTIONS_DIR,
