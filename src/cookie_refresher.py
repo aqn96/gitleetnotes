@@ -63,11 +63,15 @@ def headless_login(email: str, password: str) -> tuple[str, str]:
             except Exception:
                 continue
 
+        page.wait_for_timeout(500)
+
         # Fill password
         page.fill('input[type="password"]', password)
 
-        # Submit
-        page.click('button[type="submit"]', timeout=10000)
+        page.wait_for_timeout(500)
+
+        # Submit — press Enter on the password field (works regardless of button markup)
+        page.press('input[type="password"]', 'Enter')
 
         # Poll for LEETCODE_SESSION cookie — up to 30 seconds
         print("  Waiting for login to complete...")
