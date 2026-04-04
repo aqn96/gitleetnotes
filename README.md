@@ -108,32 +108,6 @@ python setup.py --refresh YOUR_USERNAME/YOUR_REPO_NAME
 
 Opens a browser, re-extracts cookies, updates your repo secrets. Done in under a minute.
 
-### Optional: Automatic cookie refresh
-
-By default, LeetCode cookies expire every few weeks and you renew them manually with `python setup.py --refresh`. If you log in to LeetCode with **email and password** (not Google/GitHub OAuth), you can eliminate this entirely.
-
-**Requires:** your notes repo already exists (complete setup above first).
-
-**Step 1** — Create a GitHub Fine-grained PAT at `github.com/settings/tokens?type=beta`:
-- Repository access: **Only select repositories** → your notes repo
-- Repository permissions → **Secrets** → **Read and write**
-- Copy the token (shown once)
-
-**Step 2** — Run from the gitleetnotes clone:
-```bash
-python setup.py --setup-auto-refresh YOUR_USERNAME/YOUR_REPO_NAME
-```
-
-The script will:
-1. Ask for your LeetCode email, password, and the PAT
-2. Open a browser window, auto-fill your credentials, and log in
-3. If LeetCode shows a "verify you're human" prompt — solve it once manually, the script continues automatically
-4. Store everything as encrypted secrets and push a weekly refresh workflow
-
-After this one-time setup, **a GitHub Actions workflow refreshes your cookies every Sunday automatically** — GitHub's servers don't trigger LeetCode's bot detection, so no CAPTCHA, no manual steps, ever.
-
-> **OAuth users (Google/GitHub login):** This won't work for you. Stick with `python setup.py --refresh` when cookies expire.
-
 ### Manual setup (if you prefer)
 
 <details>

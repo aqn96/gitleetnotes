@@ -15,8 +15,6 @@ Requirements: gh CLI (authenticated), Python 3.10+, playwright
 """
 
 import argparse
-import base64
-import getpass
 import subprocess
 import sys
 import tempfile
@@ -100,44 +98,6 @@ _GITIGNORE = """\
 _runner/
 __pycache__/
 *.pyc
-"""
-
-_REFRESH_YML = f"""\
-name: Refresh LeetCode Cookies
-
-on:
-  schedule:
-    - cron: "0 0 * * 0"  # Weekly — Sunday midnight UTC
-  workflow_dispatch:
-
-jobs:
-  refresh:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout GitLeetNotes runner
-        uses: actions/checkout@v4
-        with:
-          repository: {RUNNER_REPO}
-          path: _runner
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install dependencies
-        run: |
-          pip install playwright
-          playwright install chromium --with-deps
-
-      - name: Refresh cookies
-        env:
-          LEETCODE_EMAIL: ${{{{ secrets.LEETCODE_EMAIL }}}}
-          LEETCODE_PASSWORD: ${{{{ secrets.LEETCODE_PASSWORD }}}}
-          GH_PAT: ${{{{ secrets.GH_PAT }}}}
-          REPO: ${{{{ github.repository }}}}
-        run: python _runner/src/cookie_refresher.py
 """
 
 
@@ -378,105 +338,6 @@ def refresh_cookies(repo: str) -> None:
     print()
 
 
-# ─── Auto-refresh setup ───────────────────────────────────────────────────────
-
-def _push_refresh_workflow(repo: str) -> None:
-    """Push refresh.yml to the repo via GitHub API, creating or updating as needed."""
-    path = ".github/workflows/refresh.yml"
-    content_b64 = base64.b64encode(_REFRESH_YML.encode()).decode()
-
-    sha_args = []
-    try:
-        result = run(
-            ["gh", "api", f"repos/{repo}/contents/{path}", "--jq", ".sha"],
-            capture=True,
-        )
-        sha = result.stdout.strip()
-        if sha:
-            sha_args = ["--field", f"sha={sha}"]
-    except subprocess.CalledProcessError:
-        pass  # File doesn't exist yet — create it fresh
-
-    run([
-        "gh", "api", "--method", "PUT", f"repos/{repo}/contents/{path}",
-        "--field", "message=feat: add automated cookie refresh workflow",
-        "--field", f"content={content_b64}",
-        *sha_args,
-    ])
-
-
-def setup_auto_refresh(repo: str) -> None:
-    """
-    Sets up automatic weekly cookie refresh for an existing notes repo.
-    Prompts for LeetCode credentials and a GitHub PAT, stores them as
-    secrets, tests headless login, and pushes the refresh workflow.
-    """
-    print("\033[1mGitLeetNotes — Auto-Refresh Setup\033[0m")
-    print("─" * 40)
-    print_info(f"Configuring auto-refresh for: {repo}")
-    print()
-
-    print_info("Enter your LeetCode credentials (email/password login only — not Google/GitHub OAuth).")
-    print_info("These will be stored as encrypted GitHub secrets.")
-    print()
-
-    email = input("  LeetCode email: ").strip()
-    if not email:
-        print_error("Email cannot be empty.")
-        sys.exit(1)
-
-    password = getpass.getpass("  LeetCode password (hidden): ").strip()
-    if not password:
-        print_error("Password cannot be empty.")
-        sys.exit(1)
-
-    print()
-    print_info("Enter a GitHub PAT with Secrets: write for this repo.")
-    print_info("Create one at: https://github.com/settings/tokens?type=beta")
-    print_info("  → Only select repositories: your notes repo")
-    print_info("  → Repository permissions → Secrets → Read and write")
-    print()
-
-    pat = getpass.getpass("  GitHub PAT (hidden): ").strip()
-    if not pat:
-        print_error("PAT cannot be empty.")
-        sys.exit(1)
-
-    print()
-    print_info("Storing secrets...")
-    for name, value in [("LEETCODE_EMAIL", email), ("LEETCODE_PASSWORD", password), ("GH_PAT", pat)]:
-        run(["gh", "secret", "set", name, "--body", value, "--repo", repo])
-        print_ok(f"Secret set: {name}")
-
-    print()
-    print_info("Opening browser to log in to LeetCode — filling credentials automatically...")
-    print_info("A browser window will appear briefly, then close once cookies are extracted.")
-    sys.path.insert(0, str(Path(__file__).parent / "src"))
-    try:
-        from cookie_refresher import headless_login
-        session, csrf = headless_login(email, password, headless=False)
-    except RuntimeError as e:
-        print_error(f"Login failed: {e}")
-        sys.exit(1)
-
-    for name, value in [("LEETCODE_SESSION", session), ("LEETCODE_CSRF", csrf)]:
-        run(["gh", "secret", "set", name, "--body", value, "--repo", repo])
-        print_ok(f"Secret updated: {name}")
-
-    print()
-    print_info("Pushing refresh workflow...")
-    try:
-        _push_refresh_workflow(repo)
-    except subprocess.CalledProcessError as e:
-        print_error(f"Failed to push workflow: {e.stderr or e}")
-        sys.exit(1)
-    print_ok("refresh.yml pushed.")
-
-    print(f"\n\033[1m\033[32mAuto-refresh configured!\033[0m")
-    print(f"  Runs every Sunday at midnight UTC")
-    print(f"  Trigger manually: https://github.com/{repo}/actions")
-    print()
-
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
@@ -489,21 +350,11 @@ def main() -> None:
         metavar="OWNER/REPO",
         help="Refresh expired LeetCode cookies on an existing repo (e.g. octocat/leetcode-notes)",
     )
-    parser.add_argument(
-        "--setup-auto-refresh",
-        metavar="OWNER/REPO",
-        help="Set up automatic weekly cookie refresh (email/password login only)",
-    )
     args = parser.parse_args()
 
     if args.refresh:
         check_gh_auth()
         refresh_cookies(args.refresh)
-        return
-
-    if args.setup_auto_refresh:
-        check_gh_auth()
-        setup_auto_refresh(args.setup_auto_refresh)
         return
 
     print("\033[1mGitLeetNotes Setup\033[0m")
