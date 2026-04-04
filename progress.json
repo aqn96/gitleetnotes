@@ -1,0 +1,219 @@
+{
+  "solved": {
+    "1962403000": {
+      "problem_id": "647",
+      "title": "Palindromic Substrings",
+      "slug": "palindromic-substrings",
+      "difficulty": "Medium",
+      "pattern": "Two Pointers",
+      "lang": "python3",
+      "note_path": "solutions/two_pointers/0647_palindromic-substrings.md",
+      "solved_on": "2026-03-29"
+    },
+    "1962359061": {
+      "problem_id": "20",
+      "title": "Valid Parentheses",
+      "slug": "valid-parentheses",
+      "difficulty": "Easy",
+      "pattern": "Stack",
+      "lang": "python3",
+      "note_path": "solutions/stack/0020_valid-parentheses.md",
+      "solved_on": "2026-03-29"
+    },
+    "1962322513": {
+      "problem_id": "560",
+      "title": "Subarray Sum Equals K",
+      "slug": "subarray-sum-equals-k",
+      "difficulty": "Medium",
+      "pattern": "Hash Map",
+      "lang": "python3",
+      "note_path": "solutions/hash_map/0560_subarray-sum-equals-k.md",
+      "solved_on": "2026-03-29"
+    },
+    "1962299970": {
+      "problem_id": "9",
+      "title": "Palindrome Number",
+      "slug": "palindrome-number",
+      "difficulty": "Easy",
+      "pattern": "Two Pointers",
+      "lang": "python3",
+      "note_path": "solutions/two_pointers/0009_palindrome-number.md",
+      "solved_on": "2026-03-29"
+    },
+    "1962298613": {
+      "problem_id": "20",
+      "title": "Valid Parentheses",
+      "slug": "valid-parentheses",
+      "difficulty": "Easy",
+      "pattern": "Stack",
+      "lang": "python3",
+      "note_path": "solutions/stack/0020_valid-parentheses.md",
+      "solved_on": "2026-03-29"
+    },
+    "1962285719": {
+      "problem_id": "12",
+      "title": "Integer to Roman",
+      "slug": "integer-to-roman",
+      "difficulty": "Medium",
+      "pattern": "Greedy",
+      "lang": "python3",
+      "note_path": "solutions/greedy/0012_integer-to-roman.md",
+      "solved_on": "2026-03-29"
+    },
+    "1962283399": {
+      "problem_id": "3766",
+      "title": "Maximum Median Sum of Subsequences of Size 3",
+      "slug": "maximum-median-sum-of-subsequences-of-size-3",
+      "difficulty": "Medium",
+      "pattern": "Greedy",
+      "lang": "python3",
+      "note_path": "solutions/greedy/3766_maximum-median-sum-of-subsequences-of-size-3.md",
+      "solved_on": "2026-03-29"
+    },
+    "1962133176": {
+      "problem_id": "412",
+      "title": "Fizz Buzz",
+      "slug": "fizz-buzz",
+      "difficulty": "Easy",
+      "pattern": "Math",
+      "lang": "python3",
+      "note_path": "solutions/math/0412_fizz-buzz.md",
+      "solved_on": "2026-03-28"
+    },
+    "1962108328": {
+      "problem_id": "12",
+      "title": "Integer to Roman",
+      "slug": "integer-to-roman",
+      "difficulty": "Medium",
+      "pattern": "Greedy",
+      "lang": "python3",
+      "note_path": "solutions/greedy/0012_integer-to-roman.md",
+      "solved_on": "2026-03-28"
+    },
+    "1948474075": {
+      "problem_id": "11",
+      "title": "Container With Most Water",
+      "slug": "container-with-most-water",
+      "difficulty": "Medium",
+      "pattern": "Two Pointers",
+      "lang": "python3",
+      "note_path": "solutions/two_pointers/0011_container-with-most-water.md",
+      "solved_on": "2026-03-15"
+    },
+    "1948170369": {
+      "problem_id": "15",
+      "title": "3Sum",
+      "slug": "3sum",
+      "difficulty": "Medium",
+      "pattern": "Two Pointers",
+      "lang": "python3",
+      "note_path": "solutions/two_pointers/0015_3sum.md",
+      "solved_on": "2026-03-14"
+    },
+    "1947678020": {
+      "problem_id": "121",
+      "title": "Best Time to Buy and Sell Stock",
+      "slug": "best-time-to-buy-and-sell-stock",
+      "difficulty": "Easy",
+      "pattern": "Greedy",
+      "lang": "python3",
+      "note_path": "solutions/greedy/0121_best-time-to-buy-and-sell-stock.md",
+      "solved_on": "2026-03-14"
+    },
+    "1947672749": {
+      "problem_id": "20",
+      "title": "Valid Parentheses",
+      "slug": "valid-parentheses",
+      "difficulty": "Easy",
+      "pattern": "Stack",
+      "lang": "python3",
+      "note_path": "solutions/stack/0020_valid-parentheses.md",
+      "solved_on": "2026-03-14"
+    },
+    "1947511403": {
+      "problem_id": "14",
+      "title": "Longest Common Prefix",
+      "slug": "longest-common-prefix",
+      "difficulty": "Easy",
+      "pattern": "String",
+      "lang": "python3",
+      "note_path": "solutions/string/0014_longest-common-prefix.md",
+      "solved_on": "2026-03-14"
+    },
+    "1947508809": {
+      "problem_id": "1",
+      "title": "Two Sum",
+      "slug": "two-sum",
+      "difficulty": "Easy",
+      "pattern": "Hash Map",
+      "lang": "python3",
+      "note_path": "solutions/hash_map/0001_two-sum.md",
+      "solved_on": "2026-03-14"
+    },
+    "1926814774": {
+      "problem_id": "899",
+      "title": "Binary Gap",
+      "slug": "binary-gap",
+      "difficulty": "Easy",
+      "pattern": "Bit Manipulation",
+      "lang": "python3",
+      "note_path": "solutions/bit_manipulation/0899_binary-gap.md",
+      "solved_on": "2026-02-22"
+    },
+    "1887975898": {
+      "problem_id": "189",
+      "title": "Rotate Array",
+      "slug": "rotate-array",
+      "difficulty": "Medium",
+      "pattern": "Array",
+      "lang": "python3",
+      "note_path": "solutions/array/0189_rotate-array.md",
+      "solved_on": "2026-01-17"
+    },
+    "1875115097": {
+      "problem_id": "80",
+      "title": "Remove Duplicates from Sorted Array II",
+      "slug": "remove-duplicates-from-sorted-array-ii",
+      "difficulty": "Medium",
+      "pattern": "Two Pointers",
+      "lang": "python3",
+      "note_path": "solutions/two_pointers/0080_remove-duplicates-from-sorted-array-ii.md",
+      "solved_on": "2026-01-05"
+    },
+    "1872308655": {
+      "problem_id": "121",
+      "title": "Best Time to Buy and Sell Stock",
+      "slug": "best-time-to-buy-and-sell-stock",
+      "difficulty": "Easy",
+      "pattern": "Greedy",
+      "lang": "python3",
+      "note_path": "solutions/greedy/0121_best-time-to-buy-and-sell-stock.md",
+      "solved_on": "2026-01-02"
+    },
+    "1860184138": {
+      "problem_id": "169",
+      "title": "Majority Element",
+      "slug": "majority-element",
+      "difficulty": "Easy",
+      "pattern": "Sorting",
+      "lang": "python3",
+      "note_path": "solutions/sorting/0169_majority-element.md",
+      "solved_on": "2025-12-20"
+    }
+  },
+  "by_difficulty": {
+    "Medium": 9,
+    "Easy": 11
+  },
+  "by_pattern": {
+    "Two Pointers": 5,
+    "Stack": 3,
+    "Hash Map": 2,
+    "Greedy": 5,
+    "Math": 1,
+    "String": 1,
+    "Bit Manipulation": 1,
+    "Array": 1,
+    "Sorting": 1
+  }
+}
