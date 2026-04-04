@@ -80,6 +80,7 @@ jobs:
             echo "No new solutions today."
           else
             git commit -m "chore: sync LeetCode solutions [$(date -u +%Y-%m-%d)]"
+            git pull --rebase origin main
             git push
           fi
 """
