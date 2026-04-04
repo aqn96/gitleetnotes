@@ -56,7 +56,7 @@ def headless_login(email: str, password: str, headless: bool = True) -> tuple[st
                 "Login form not found. LeetCode may have changed their page structure."
             )
 
-        # Fill email/username
+        # Pre-fill credentials as a convenience — user handles CAPTCHA if shown
         for selector in ['input[name="login"]', 'input[autocomplete="username"]', 'input[type="text"]']:
             try:
                 page.fill(selector, email, timeout=3000)
@@ -65,18 +65,18 @@ def headless_login(email: str, password: str, headless: bool = True) -> tuple[st
                 continue
 
         page.wait_for_timeout(500)
-
-        # Fill password
         page.fill('input[type="password"]', password)
-
         page.wait_for_timeout(500)
-
-        # Submit — press Enter on the password field (works regardless of button markup)
         page.press('input[type="password"]', 'Enter')
 
-        # Poll for LEETCODE_SESSION cookie — up to 30 seconds
-        print("  Waiting for login to complete...")
-        deadline = time.time() + 30
+        # Poll for LEETCODE_SESSION cookie — up to 3 minutes so user can solve CAPTCHA if needed
+        if not headless:
+            print("  Credentials filled. If a CAPTCHA appears, solve it manually.")
+            print("  Waiting for login to complete (up to 3 min)...")
+        else:
+            print("  Waiting for login to complete...")
+
+        deadline = time.time() + 180
         while time.time() < deadline:
             cookies = context.cookies()
             session = next((c["value"] for c in cookies if c["name"] == "LEETCODE_SESSION"), None)
@@ -84,11 +84,11 @@ def headless_login(email: str, password: str, headless: bool = True) -> tuple[st
             if session and csrf:
                 browser.close()
                 return session, csrf
-            page.wait_for_timeout(1000)
+            page.wait_for_timeout(1500)
 
         browser.close()
         raise RuntimeError(
-            "Login timed out — credentials may be wrong, or LeetCode showed a CAPTCHA.\n"
+            "Login timed out — credentials may be wrong or CAPTCHA was not solved.\n"
             "Run `python setup.py --refresh <repo>` to log in manually instead."
         )
 
