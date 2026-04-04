@@ -449,11 +449,12 @@ def setup_auto_refresh(repo: str) -> None:
         print_ok(f"Secret set: {name}")
 
     print()
-    print_info("Testing headless login...")
+    print_info("Opening browser to log in to LeetCode — filling credentials automatically...")
+    print_info("A browser window will appear briefly, then close once cookies are extracted.")
     sys.path.insert(0, str(Path(__file__).parent / "src"))
     try:
         from cookie_refresher import headless_login
-        session, csrf = headless_login(email, password)
+        session, csrf = headless_login(email, password, headless=False)
     except RuntimeError as e:
         print_error(f"Login failed: {e}")
         sys.exit(1)

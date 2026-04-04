@@ -20,9 +20,10 @@ import time
 LEETCODE_LOGIN_URL = "https://leetcode.com/accounts/login/"
 
 
-def headless_login(email: str, password: str) -> tuple[str, str]:
+def headless_login(email: str, password: str, headless: bool = True) -> tuple[str, str]:
     """
-    Logs into LeetCode headlessly and returns (LEETCODE_SESSION, csrftoken).
+    Logs into LeetCode and returns (LEETCODE_SESSION, csrftoken).
+    Use headless=False for local runs to bypass bot detection.
     Raises RuntimeError if login fails.
     """
     try:
@@ -33,7 +34,7 @@ def headless_login(email: str, password: str) -> tuple[str, str]:
         )
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(headless=headless)
         context = browser.new_context(
             user_agent=(
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
