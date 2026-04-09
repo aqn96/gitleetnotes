@@ -53,7 +53,8 @@ def run() -> int:
     print(f"Logged in as: {username}")
 
     progress = load_progress(PROGRESS_PATH)
-    already_seen = set(progress.get("solved", {}).keys())
+    already_seen_submissions = set(str(s) for s in progress.get("seen_submission_ids", []))
+    already_seen_problems = set(str(p) for p in progress.get("seen_problem_keys", []))
 
     print("Fetching recent accepted submissions...")
     submissions = fetch_recent_accepted(lc_session, lc_csrf, username, limit=20)
@@ -61,8 +62,15 @@ def run() -> int:
 
     for sub in submissions:
         sub_id = str(sub["id"])
-        if sub_id in already_seen:
+        problem_key = f"slug:{sub['titleSlug']}"
+
+        if sub_id in already_seen_submissions:
             print(f"  skip (already recorded): {sub['title']}")
+            continue
+        if problem_key in already_seen_problems:
+            print(f"  skip (already solved problem): {sub['title']}")
+            already_seen_submissions.add(sub_id)
+            progress["seen_submission_ids"] = sorted(already_seen_submissions)
             continue
 
         print(f"  processing: {sub['title']} [{sub['lang']}]")
@@ -138,10 +146,14 @@ def run() -> int:
 
         if is_new:
             new_count += 1
+            already_seen_submissions.add(sub_id)
+            already_seen_problems.add(problem_key)
             print(f"    saved: {note_path}")
 
-    # Re-analyze any notes that previously fell back to "Unknown" (e.g. rate limit hit)
-    retry_count = _retry_unknown(progress, lc_session, lc_csrf, github_token)
+    # If there were no new problems, refresh stale notes (e.g. previously Unknown).
+    retry_count = 0
+    if new_count == 0:
+        retry_count = _retry_unknown(progress, lc_session, lc_csrf, github_token)
     if retry_count:
         print(f"  Re-analyzed {retry_count} previously-unknown note(s).")
 

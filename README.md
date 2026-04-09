@@ -2,7 +2,7 @@
 
 ![Tests](https://github.com/aqn96/gitleetnotes/actions/workflows/test.yml/badge.svg)
 
-> Your LeetCode grind, auto-documented. Every accepted solution becomes a structured study note — pattern, complexity, and key insight included.
+> Your LeetCode grind, auto-documented. Every newly solved problem becomes a structured study note — pattern, complexity, and key insight included.
 
 ---
 
@@ -22,7 +22,7 @@ No browser extension. No manual steps. No API keys to manage. It just runs in th
 
 ## What you get
 
-Every accepted solution automatically becomes a note:
+Every newly solved problem automatically becomes a note:
 
 ```markdown
 # 1. Two Sum
@@ -68,9 +68,10 @@ Before an interview you don't re-solve 50 problems — you open your repo and se
 
 1. A GitHub Action runs **daily at 9 AM UTC** (or on demand)
 2. Fetches your recent accepted submissions from LeetCode
-3. Calls **GitHub Models (gpt-4o-mini)** — free for all GitHub users, authenticated automatically via `GITHUB_TOKEN` — to identify the algorithmic pattern, complexity, and a key insight
-4. Commits a markdown note to `solutions/<pattern>/` and regenerates your README dashboard
-5. Everything runs inside your own GitHub repo — no external servers, no accounts to manage
+3. Keeps only unique problems (skips repeat accepted submissions of the same problem)
+4. Calls **GitHub Models (gpt-4o-mini)** — free for all GitHub users, authenticated automatically via `GITHUB_TOKEN` — to identify the algorithmic pattern, complexity, and a key insight
+5. Commits a markdown note to `solutions/<pattern>/` and regenerates your README dashboard
+6. Everything runs inside your own GitHub repo — no external servers, no accounts to manage
 
 **Total cost: $0.** GitHub Models is free for all GitHub users with no separate API key required.
 
@@ -189,6 +190,7 @@ pytest tests/ -v --cov=src --cov-report=term-missing
 - **LeetCode's API is unofficial.** There is no public LeetCode API — this tool uses the same GraphQL endpoint their website uses. It has been stable for years but could break if LeetCode changes their frontend. Session cookies also expire every few weeks.
 - **GitHub Models free tier rate limits.** gpt-4o-mini allows 200 requests/day. At one problem per day, you'll use ~30 requests/month — well within limits. The sync throttles calls automatically.
 - **Fetches the 20 most recent accepted submissions per run.** If you solve more than 20 problems in one day, trigger the Action manually to catch up.
+- **Tracks unique problems, not submission attempts.** Re-accepted submissions of a problem you've already recorded are intentionally skipped.
 
 ---
 

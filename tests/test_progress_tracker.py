@@ -34,6 +34,8 @@ class TestLoadProgress:
         assert "solved" in result
         assert "by_difficulty" in result
         assert "by_pattern" in result
+        assert "seen_submission_ids" in result
+        assert "seen_problem_keys" in result
 
     def test_loads_existing_file(self, tmp_path):
         data = {"solved": {"42": {"title": "Foo"}}, "by_difficulty": {}, "by_pattern": {}}
@@ -41,6 +43,24 @@ class TestLoadProgress:
         p.write_text(json.dumps(data))
         result = load_progress(p)
         assert "42" in result["solved"]
+        assert "42" in result["seen_submission_ids"]
+
+    def test_backfills_seen_problem_keys_from_existing_solved(self, tmp_path):
+        data = {
+            "solved": {
+                "42": {
+                    "problem_id": "1",
+                    "slug": "two-sum",
+                    "title": "Two Sum",
+                }
+            },
+            "by_difficulty": {},
+            "by_pattern": {},
+        }
+        p = tmp_path / "progress.json"
+        p.write_text(json.dumps(data))
+        result = load_progress(p)
+        assert "slug:two-sum" in result["seen_problem_keys"]
 
 
 class TestSaveProgress:
@@ -66,14 +86,14 @@ class TestRecordSolution:
 
     def test_increments_difficulty_count(self):
         progress = _sample_progress()
-        _add_solution(progress, sub_id="1", difficulty="Easy")
-        _add_solution(progress, sub_id="2", difficulty="Easy")
+        _add_solution(progress, sub_id="1", problem_id="1", slug="two-sum", difficulty="Easy")
+        _add_solution(progress, sub_id="2", problem_id="2", slug="add-two-numbers", difficulty="Easy")
         assert progress["by_difficulty"]["Easy"] == 2
 
     def test_increments_pattern_count(self):
         progress = _sample_progress()
-        _add_solution(progress, sub_id="1", pattern="Hash Map")
-        _add_solution(progress, sub_id="2", pattern="Hash Map")
+        _add_solution(progress, sub_id="1", problem_id="1", slug="two-sum", pattern="Hash Map")
+        _add_solution(progress, sub_id="2", problem_id="2", slug="add-two-numbers", pattern="Hash Map")
         assert progress["by_pattern"]["Hash Map"] == 2
 
     def test_stores_solution_metadata(self):
@@ -84,16 +104,28 @@ class TestRecordSolution:
 
     def test_different_sub_ids_both_recorded(self):
         progress = _sample_progress()
-        _add_solution(progress, sub_id="1", problem_id="1", title="Two Sum")
-        _add_solution(progress, sub_id="2", problem_id="2", title="Add Two Numbers")
+        _add_solution(progress, sub_id="1", problem_id="1", title="Two Sum", slug="two-sum")
+        _add_solution(progress, sub_id="2", problem_id="2", title="Add Two Numbers", slug="add-two-numbers")
         assert len(progress["solved"]) == 2
+
+    def test_returns_false_for_same_problem_with_new_submission(self):
+        progress = _sample_progress()
+        _add_solution(progress, sub_id="1", problem_id="1", slug="two-sum")
+        result = _add_solution(progress, sub_id="2", problem_id="1", slug="two-sum")
+        assert result is False
+
+    def test_updates_seen_sets_when_new_solution_added(self):
+        progress = _sample_progress()
+        _add_solution(progress, sub_id="9", problem_id="9", slug="palindrome-number")
+        assert "9" in progress["seen_submission_ids"]
+        assert "slug:palindrome-number" in progress["seen_problem_keys"]
 
 
 class TestGenerateReadme:
     def test_contains_total_count(self):
         progress = _sample_progress()
-        _add_solution(progress, sub_id="1", difficulty="Easy")
-        _add_solution(progress, sub_id="2", difficulty="Medium")
+        _add_solution(progress, sub_id="1", problem_id="1", slug="two-sum", difficulty="Easy")
+        _add_solution(progress, sub_id="2", problem_id="2", slug="add-two-numbers", difficulty="Medium")
         readme = generate_readme(progress)
         assert "Total: 2 problems solved" in readme
 
