@@ -93,7 +93,7 @@ python setup.py
 The script walks you through:
 
 1. **Creates your repo** — makes a new public repo (e.g. `your-username/leetcode-notes`) on your GitHub account from this template, via GitHub CLI
-2. **Extracts your LeetCode cookies** — opens a browser window, you log in once, the script pulls your session cookies automatically. No DevTools, no copy-pasting.
+2. **Extracts your LeetCode cookies** — reads cookies from your existing logged-in browser profile (Chrome/Chromium/Brave/Edge). No Playwright login flow.
 3. **Sets all secrets** on your new repo via GitHub CLI
 4. **Triggers your first sync** — your repo gets its first notes within a minute
 
@@ -107,7 +107,17 @@ After that, your personal repo runs on its own every day. You can delete this lo
 python setup.py --refresh YOUR_USERNAME/YOUR_REPO_NAME
 ```
 
-Opens a browser, re-extracts cookies, updates your repo secrets. Done in under a minute.
+Reads local browser cookies and updates your repo secrets. Done in under a minute.
+
+Or use the standalone helper:
+
+```bash
+python src/refresh_lc_secrets.py YOUR_USERNAME/YOUR_REPO_NAME
+```
+
+### Why Playwright was removed from setup
+
+The previous setup flow opened a Playwright browser and waited for interactive login. In practice this was fragile due to anti-bot/CAPTCHA/OAuth interstitial behavior on LeetCode, which could leave login frozen or fail with target/page closed errors. Cookie extraction now uses your normal local browser profile instead, which is more reliable and avoids automated-login brittleness.
 
 ### Manual setup (if you prefer)
 

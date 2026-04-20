@@ -11,19 +11,17 @@ Usage:
     # Refresh expired LeetCode cookies on an existing repo
     python setup.py --refresh
 
-Requirements: gh CLI (authenticated), Python 3.10+, playwright
+Requirements: gh CLI (authenticated), Python 3.10+, browser-cookie3
 """
 
 import argparse
 import subprocess
 import sys
 import tempfile
-import time
 from pathlib import Path
 
 RUNNER_REPO = "aqn96/gitleetnotes"
 DEFAULT_REPO_NAME = "leetcode-notes"
-LEETCODE_LOGIN_URL = "https://leetcode.com/accounts/login/"
 # Minimal workflow written into the user's notes repo.
 # Checks out gitleetnotes at runtime to run the sync scripts —
 # users automatically get bug fixes without touching their repo.
@@ -238,70 +236,55 @@ def create_repo(username: str) -> tuple[str, bool]:
     return full_name, True  # new repo — all secrets required
 
 
-# ─── Step 3: Extract LeetCode cookies via Playwright ─────────────────────────
+# ─── Step 3: Extract LeetCode cookies from local browser ─────────────────────
 
 def get_leetcode_cookies() -> tuple[str, str]:
     """
-    Opens a visible browser window, waits for the user to log in to LeetCode,
-    then automatically extracts LEETCODE_SESSION and csrftoken.
+    Reads LeetCode cookies from an already logged-in local browser profile.
     Returns (session, csrf).
     """
     print_step(3, "Extracting LeetCode session cookies")
-    print_info("A browser window will open. Log in to LeetCode, then come back here.")
-    print_info("The script will detect your login automatically.")
+    print_info("Using local browser cookies (no Playwright login window).")
+    print_info("If needed, first log into https://leetcode.com in your browser.")
 
     try:
-        from playwright.sync_api import sync_playwright
+        import browser_cookie3
     except ImportError:
-        print_error("playwright not installed. Run: pip install -r requirements-setup.txt")
+        print_error("browser-cookie3 not installed. Run: pip install -r requirements-setup.txt")
         sys.exit(1)
 
-    # Install browser binaries if not already present — safe to run multiple times.
-    # Don't capture output so download progress is visible (first run is ~130 MB).
-    print_info("Ensuring Playwright browser is installed (first run downloads ~130 MB)...")
-    try:
-        run(["playwright", "install", "chromium"])
-    except subprocess.CalledProcessError as e:
-        print_error(f"Failed to install Playwright browser: {e}")
-        sys.exit(1)
+    browser_loaders = [
+        ("Chrome", browser_cookie3.chrome),
+        ("Chromium", browser_cookie3.chromium),
+        ("Brave", browser_cookie3.brave),
+        ("Edge", browser_cookie3.edge),
+    ]
+    errors: list[str] = []
 
-    session = None
-    csrf = None
+    for browser_name, loader in browser_loaders:
+        try:
+            cookies = loader(domain_name="leetcode.com")
+        except Exception as exc:
+            errors.append(f"{browser_name}: {exc}")
+            continue
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False, slow_mo=50)
-        context = browser.new_context()
-        page = context.new_page()
+        values = {c.name: c.value for c in cookies if c.name in {"LEETCODE_SESSION", "csrftoken"}}
+        session = values.get("LEETCODE_SESSION")
+        csrf = values.get("csrftoken")
+        if session and csrf:
+            print_ok(f"Cookies extracted from {browser_name}")
+            print_ok("LEETCODE_SESSION extracted")
+            print_ok("csrftoken extracted")
+            return session, csrf
 
-        page.goto(LEETCODE_LOGIN_URL)
-        page.bring_to_front()
-
-        print_info("Waiting for login (up to 3 minutes) — check your browser window...")
-
-        # Poll for the LEETCODE_SESSION cookie rather than watching URLs.
-        # URL-based detection breaks with Google/GitHub OAuth redirects.
-        deadline = time.time() + 180
-        while time.time() < deadline:
-            cookies = context.cookies()
-            for c in cookies:
-                if c["name"] == "LEETCODE_SESSION":
-                    session = c["value"]
-                elif c["name"] == "csrftoken":
-                    csrf = c["value"]
-            if session and csrf:
-                break
-            page.wait_for_timeout(1500)
-
-        browser.close()
-
-    if not session or not csrf:
-        print_error("Could not find LeetCode session cookies after login.")
-        print_info("Try logging in again and make sure you land on the LeetCode homepage.")
-        sys.exit(1)
-
-    print_ok("LEETCODE_SESSION extracted")
-    print_ok("csrftoken extracted")
-    return session, csrf
+    print_error("Could not find LeetCode cookies in local browser profiles.")
+    if errors:
+        print_info("Browser read attempts:")
+        for err in errors:
+            print(f"    - {err}")
+    print_info("Log into LeetCode in Chrome/Chromium/Brave/Edge, then run setup.py again.")
+    print_info("If browser extraction fails, set LEETCODE_SESSION and LEETCODE_CSRF manually with gh secret set.")
+    sys.exit(1)
 
 
 # ─── Step 4: Set secrets + trigger workflow ───────────────────────────────────
